@@ -1,4 +1,4 @@
-import { LTSRadixEngineToolkit, NetworkId, PrivateKey, RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit'
+import { LTSRadixEngineToolkit, NetworkId, PublicKey, RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit'
 import {
   AssetInfo,
   Balance,
@@ -7,16 +7,32 @@ import {
   Network,
   PreparedTx,
   Tx,
-  TxHistoryParams,
   TxParams,
   TxsPage,
+  XChainClientParams,
 } from '@xchainjs/xchain-client'
-import { getSeed } from '@xchainjs/xchain-crypto/lib'
 import { Address, Asset } from '@xchainjs/xchain-util'
 
 const axios = require('axios')
+import { RadixChain } from './const'
+import { RadixTxResponse } from './types/radix'
 
-class RadixClient extends BaseXChainClient {
+/**
+ * Custom Radix client
+ */
+
+class Client extends BaseXChainClient {
+  publicKey: PublicKey
+  /**
+   * Constructor
+   * Client has to be initialised with network type and public key.
+   * @param {XChainClientParams} params
+   */
+  constructor({ network = Network.Mainnet }: XChainClientParams, publicKey: PublicKey) {
+    super(RadixChain, { network })
+    this.publicKey = publicKey
+  }
+
   /**
    * Get transaction fees.
    *
@@ -24,11 +40,9 @@ class RadixClient extends BaseXChainClient {
    * @returns {Fees} The average, fast, and fastest fees.
    * @throws {"Params need to be passed"} Thrown if parameters are not provided.
    */
-  getFees(): never
-  getFees(params: TxParams): Promise<Fees>
   async getFees(params?: TxParams): Promise<Fees> {
     if (!params) throw new Error('Params need to be passed')
-    const fees = await this.estimateFees(params)
+    const fees = await this.estimateFees()
     return fees
   }
 
@@ -47,14 +61,9 @@ class RadixClient extends BaseXChainClient {
    * A phrase is needed to create a wallet and to derive an address from it.
    */
   async getAddressAsync(): Promise<string> {
-    if (!this.phrase) throw new Error('Phrase not set')
-    const seed = getSeed(this.phrase)
-    const hexString = seed.toString('hex')
-    const privateKey = new PrivateKey.Ed25519(hexString)
-    const publicKey = privateKey.publicKey()
     const network = this.getNetwork()
     const networkId = network === Network.Mainnet ? NetworkId.Mainnet : NetworkId.Stokenet
-    const address = await LTSRadixEngineToolkit.Derive.virtualAccountAddress(publicKey, networkId)
+    const address = await LTSRadixEngineToolkit.Derive.virtualAccountAddress(this.publicKey, networkId)
     return address.toString()
   }
 
@@ -68,7 +77,7 @@ class RadixClient extends BaseXChainClient {
       case Network.Mainnet:
         return 'https://dashboard.radixdlt.com'
       case Network.Testnet:
-        return 'https://stokenet-dashboard.radixdlt.com/'
+        return 'https://stokenet-dashboard.radixdlt.com'
       default:
         throw new Error('Unsupported network')
     }
@@ -89,7 +98,7 @@ class RadixClient extends BaseXChainClient {
    * @returns {string} The explorer URL for the given transaction ID.
    */
   getExplorerTxUrl(txID: string): string {
-    return `${this.getExplorerUrl()}/transactions/${txID}`
+    return `${this.getExplorerUrl()}/transaction/${txID}`
   }
 
   /**
@@ -97,13 +106,20 @@ class RadixClient extends BaseXChainClient {
    * @param {Address} address The address to validate.
    * @returns {boolean} `true` if the address is valid, `false` otherwise.
    */
-  validateAddress(address: string): boolean {
+  async validateAddressAsync(address: string): Promise<boolean> {
     try {
-      RadixEngineToolkit.Address.decode(address)
+      await RadixEngineToolkit.Address.decode(address)
       return true
     } catch (error) {
       return false
     }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  validateAddress(): boolean {
+    throw new Error(
+      'validateAddress is synchronous and cannot retrieve addresses directly. Use getAddressAsync instead.',
+    )
   }
 
   /**
@@ -113,23 +129,69 @@ class RadixClient extends BaseXChainClient {
    * @returns {Promise<Balance[]>} An array containing the balance of the address.
    * @throws {"Invalid asset"} Thrown when the provided asset is invalid.
    */
-  async getBalance(address: string, assets?: Asset[] | undefined): Promise<Balance[]> {
+  async getBalance(address: Address, assets: Asset[]): Promise<Balance[]> {
+    const url = 'https://mainnet.radixdlt.com/state/entity/details'
+    const requestBody = {
+      addresses: [address],
+      aggregation_level: 'Global',
+    }
+
+    try {
+      const response = await axios.post(url, requestBody)
+      const entityDetails: Balance[] = response.data
+      console.log(JSON.stringify(entityDetails))
+      console.log(assets)
+      return entityDetails
+    } catch (error) {
+      // Handle errors
+      throw new Error('Failed to fetch transaction data')
+    }
+  }
+
+  /**
+   * Get transaction history of a given address with pagination options.
+   * @param {TxHistoryParams} params The options to get transaction history. (optional)
+   * @returns {TxsPage} The transaction history.
+   */
+  async getTransactions(): Promise<TxsPage> {
     throw new Error('Not implemented')
   }
 
-  async getTransactions(params?: TxHistoryParams | undefined): Promise<TxsPage> {
+  /**
+   * Get the transaction details of a given transaction id.
+   * @param {string} txId The transaction id.
+   * @returns {Tx} The transaction details of the given transaction id.
+   */
+  async getTransactionData(): Promise<Tx> {
+    throw new Error('getTransactionData is not implemented. Use getRadixTransactionData instead')
+  }
+
+  /**
+   * Get the transaction details of a given transaction id.
+   * @param {string} txId The transaction id.
+   * @returns {RadixTxResponse} The transaction details of the given transaction id.
+   */
+  async getRadixTransactionData(txId: string): Promise<RadixTxResponse> {
+    const url = 'https://mainnet.radixdlt.com/transaction/committed-details'
+    const requestBody = {
+      intent_hash: txId,
+    }
+
+    try {
+      const response = await axios.post(url, requestBody)
+      const transactionData: RadixTxResponse = response.data
+      return transactionData
+    } catch (error) {
+      // Handle errors
+      throw new Error('Failed to fetch transaction data')
+    }
+  }
+
+  async transfer(): Promise<string> {
     throw new Error('Not implemented')
   }
 
-  async getTransactionData(txId: string, assetAddress?: string | undefined): Promise<Tx> {
-    throw new Error('Not implemented')
-  }
-
-  async transfer(params: TxParams): Promise<string> {
-    throw new Error('Not implemented')
-  }
-
-  async broadcastTx(txHex: string): Promise<string> {
+  async broadcastTx(): Promise<string> {
     throw new Error('Not implemented')
   }
 
@@ -137,26 +199,13 @@ class RadixClient extends BaseXChainClient {
     throw new Error('Method not implemented.')
   }
 
-  async prepareTx(params: TxParams): Promise<PreparedTx> {
+  async prepareTx(): Promise<PreparedTx> {
     throw new Error('Not implemented')
   }
 
-  async estimateFees(params?: TxParams): Promise<Fees> {
-    try {
-      console.log(params)
-      // check if we can estimate the fees using the transaction manifest somehow
-      // if we can estimate them, do an http request and return the fees
-      const url = `fees_estimation_url`
-      console.log('Making GET request to:', url)
-      const response = await axios.get(url)
-      console.log('Response data:', response.data)
-      const fees = response.data.fees
-      return fees
-    } catch (error) {
-      console.error('Error fetching address:', error)
-      throw error
-    }
+  async estimateFees(): Promise<Fees> {
+    throw new Error('Not implemented')
   }
 }
 
-export { RadixClient }
+export { Client }
