@@ -2,7 +2,9 @@ import { PrivateKey, PublicKey } from '@radixdlt/radix-engine-toolkit'
 import { Network } from '@xchainjs/xchain-client/src'
 import { getSeed } from '@xchainjs/xchain-crypto'
 import { Client } from '@xchainjs/xchain-radix/src'
-import { RadixAsset, RadixBalance } from '../src/types/radix'
+import { RadixAsset, RadixBalance, Transaction } from '../src/types/radix'
+
+const axios = require('axios')
 
 describe('RadixClient Test', () => {
   let radixClient: Client
@@ -111,5 +113,55 @@ describe('RadixClient Test', () => {
     expect(balances[0].asset.resource_address).toBe(
       'resource_rdx1th88qcj5syl9ghka2g9l7tw497vy5x6zaatyvgfkwcfe8n9jt2npww',
     )
+  })
+
+  it('client should be able to estimate the fee for a given transaction', async () => {
+    const constructionMetadataResponse = await axios.post('https://mainnet.radixdlt.com/transaction/construction')
+    const transaction: Transaction = {
+      manifest: `CALL_METHOD
+    Address("account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg")
+    "lock_fee_and_withdraw"
+    Decimal("4")
+    Address("resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd")
+    Decimal("5000")
+;
+TAKE_FROM_WORKTOP
+    Address("resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd")
+    Decimal("5000")
+    Bucket("bucket1")
+;
+CALL_METHOD
+    Address("component_rdx1cputx5thrnh29mup6ajz0x7v90g4dznvxwzwzvd9ngg8tuqvqlxmlh")
+    "swap"
+    Bucket("bucket1")
+    Address("resource_rdx1t4upr78guuapv5ept7d7ptekk9mqhy605zgms33mcszen8l9fac8vf")
+;
+ASSERT_WORKTOP_CONTAINS
+    Address("resource_rdx1t4upr78guuapv5ept7d7ptekk9mqhy605zgms33mcszen8l9fac8vf")
+    Decimal("0")
+;
+CALL_METHOD
+    Address("account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg")
+    "deposit_batch"
+    Expression("ENTIRE_WORKTOP")
+;`,
+      start_epoch_inclusive: constructionMetadataResponse.data.ledger_state.epoch,
+      end_epoch_exclusive: constructionMetadataResponse.data.ledger_state.epoch + 10,
+      tip_percentage: 10,
+      nonce: Math.floor(Math.random() * 1000000),
+      signer_public_keys: [
+        {
+          key_type: 'EddsaEd25519',
+          key_hex: publicKey.hex(),
+        },
+      ],
+      flags: {
+        use_free_credit: true,
+        assume_all_signature_proofs: false,
+        skip_epoch_check: true,
+      },
+    }
+    const fee = await radixClient.getTransactionFees(transaction)
+    expect(fee.gt(0)).toBe(true)
   })
 })

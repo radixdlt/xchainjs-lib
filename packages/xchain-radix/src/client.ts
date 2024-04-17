@@ -3,11 +3,11 @@ import {
   AssetInfo,
   Balance,
   BaseXChainClient,
+  Fee,
   Fees,
   Network,
   PreparedTx,
   Tx,
-  TxParams,
   TxsPage,
   XChainClientParams,
 } from '@xchainjs/xchain-client'
@@ -15,7 +15,7 @@ import { Address, assetAmount, assetToBase } from '@xchainjs/xchain-util'
 
 const axios = require('axios')
 import { RadixChain } from './const'
-import { EntityDetailsResponse, RadixAsset, RadixBalance, RadixTxResponse } from './types/radix'
+import { EntityDetailsResponse, RadixAsset, RadixBalance, RadixTxResponse, Transaction } from './types/radix'
 
 /**
  * Custom Radix client
@@ -33,17 +33,32 @@ class Client extends BaseXChainClient {
     this.publicKey = publicKey
   }
 
+  getFees(): Promise<Fees> {
+    throw new Error('getFees is not implemented. Use getTransactionFee instead')
+  }
+
   /**
-   * Get transaction fees.
+   * Get transaction an estimated fee for a given transaction
    *
-   * @param {TxParams} params - The transaction parameters.
-   * @returns {Fees} The average, fast, and fastest fees.
-   * @throws {"Params need to be passed"} Thrown if parameters are not provided.
+   * @param {Transaction} transaction - The transaction to estimate the fee for
+   * @returns {Fee} An estimated transaction fee
    */
-  async getFees(params?: TxParams): Promise<Fees> {
-    if (!params) throw new Error('Params need to be passed')
-    const fees = await this.estimateFees()
-    return fees
+  async getTransactionFees(transaction: Transaction): Promise<Fee> {
+    const url = 'https://mainnet.radixdlt.com/transaction/preview'
+    try {
+      const response = await axios.post(url, transaction)
+      const previewTransaction = response.data.receipt
+      let totalFees = 0
+      for (const key in previewTransaction.fee_summary) {
+        if (!isNaN(parseFloat(previewTransaction.fee_summary[key])) && key.startsWith('xrd_total_')) {
+          totalFees += parseFloat(previewTransaction.fee_summary[key])
+        }
+      }
+      return assetToBase(assetAmount(totalFees))
+    } catch (error) {
+      // Handle errors
+      throw new Error('Failed to fetch transaction data')
+    }
   }
 
   /**
@@ -223,16 +238,12 @@ class Client extends BaseXChainClient {
     throw new Error('Not implemented')
   }
 
-  getAssetInfo(): AssetInfo {
-    throw new Error('Method not implemented.')
-  }
-
   async prepareTx(): Promise<PreparedTx> {
     throw new Error('Not implemented')
   }
 
-  async estimateFees(): Promise<Fees> {
-    throw new Error('Not implemented')
+  getAssetInfo(): AssetInfo {
+    throw new Error('Method not implemented.')
   }
 }
 
