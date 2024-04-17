@@ -2,6 +2,7 @@ import { PrivateKey, PublicKey } from '@radixdlt/radix-engine-toolkit'
 import { Network } from '@xchainjs/xchain-client/src'
 import { getSeed } from '@xchainjs/xchain-crypto'
 import { Client } from '@xchainjs/xchain-radix/src'
+import { RadixAsset, RadixBalance } from '../src/types/radix'
 
 describe('RadixClient Test', () => {
   let radixClient: Client
@@ -88,10 +89,27 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to get balances for an account', async () => {
-    const txData = await radixClient.getBalance(
+    const balances: RadixBalance[] = await radixClient.getRadixBalance(
       'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
       [],
     )
-    console.log(txData)
+    const allBalancesGreaterThanZero = balances.every((balance) => balance.amount.gt(0))
+    expect(allBalancesGreaterThanZero).toBe(true)
+  })
+
+  it('client should be able to get balances for an account with filtered assets', async () => {
+    const assets: RadixAsset[] = [
+      { resource_address: 'resource_rdx1th88qcj5syl9ghka2g9l7tw497vy5x6zaatyvgfkwcfe8n9jt2npww' },
+    ]
+    const balances: RadixBalance[] = await radixClient.getRadixBalance(
+      'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+      assets,
+    )
+    expect(balances.length).toBe(1)
+    const allBalancesGreaterThanZero = balances.every((balance) => balance.amount.gt(0))
+    expect(allBalancesGreaterThanZero).toBe(true)
+    expect(balances[0].asset.resource_address).toBe(
+      'resource_rdx1th88qcj5syl9ghka2g9l7tw497vy5x6zaatyvgfkwcfe8n9jt2npww',
+    )
   })
 })

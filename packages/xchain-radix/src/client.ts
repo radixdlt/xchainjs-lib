@@ -11,11 +11,11 @@ import {
   TxsPage,
   XChainClientParams,
 } from '@xchainjs/xchain-client'
-import { Address, Asset } from '@xchainjs/xchain-util'
+import { Address, assetAmount, assetToBase } from '@xchainjs/xchain-util'
 
 const axios = require('axios')
 import { RadixChain } from './const'
-import { RadixTxResponse } from './types/radix'
+import { EntityDetailsResponse, RadixAsset, RadixBalance, RadixTxResponse } from './types/radix'
 
 /**
  * Custom Radix client
@@ -115,21 +115,28 @@ class Client extends BaseXChainClient {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   validateAddress(): boolean {
     throw new Error(
       'validateAddress is synchronous and cannot retrieve addresses directly. Use getAddressAsync instead.',
     )
   }
 
+  getBalance(): Promise<Balance[]> {
+    throw new Error('getBalance is not implemented. Use getRadixBalance instead')
+  }
+
+  filterByAssets(resource: any, assets: RadixAsset[]): boolean {
+    return assets.length === 0 || assets.some((asset) => asset.resource_address === resource.resource_address)
+  }
+
   /**
-   * Retrieves the balance of a given address.
+   * Retrieves the balances of a given address.
    * @param {Address} address - The address to retrieve the balance for.
    * @param {Asset[]} assets - Assets to retrieve the balance for (optional).
    * @returns {Promise<Balance[]>} An array containing the balance of the address.
    * @throws {"Invalid asset"} Thrown when the provided asset is invalid.
    */
-  async getBalance(address: Address, assets: Asset[]): Promise<Balance[]> {
+  async getRadixBalance(address: Address, assets: RadixAsset[]): Promise<RadixBalance[]> {
     const url = 'https://mainnet.radixdlt.com/state/entity/details'
     const requestBody = {
       addresses: [address],
@@ -138,10 +145,31 @@ class Client extends BaseXChainClient {
 
     try {
       const response = await axios.post(url, requestBody)
-      const entityDetails: Balance[] = response.data
-      console.log(JSON.stringify(entityDetails))
-      console.log(assets)
-      return entityDetails
+      const entityDetails: EntityDetailsResponse = response.data
+      return entityDetails.items.flatMap((item: any) => {
+        const balances: RadixBalance[] = []
+        // Check for fungible_resources
+        if (item.fungible_resources && item.fungible_resources.items) {
+          const fungibleBalances = item.fungible_resources.items
+            .filter((resource: any) => this.filterByAssets(resource, assets))
+            .map((resource: any) => ({
+              asset: { resource_address: resource.resource_address },
+              amount: assetToBase(assetAmount(resource.amount)),
+            }))
+          balances.push(...fungibleBalances)
+        }
+        // Check for non_fungible_resources
+        if (item.non_fungible_resources && item.non_fungible_resources.items) {
+          const nonFungibleBalances = item.non_fungible_resources.items
+            .filter((resource: any) => this.filterByAssets(resource, assets))
+            .map((resource: any) => ({
+              asset: { resource_address: resource.resource_address },
+              amount: assetToBase(assetAmount(resource.amount)),
+            }))
+          balances.push(...nonFungibleBalances)
+        }
+        return balances
+      })
     } catch (error) {
       // Handle errors
       throw new Error('Failed to fetch transaction data')
