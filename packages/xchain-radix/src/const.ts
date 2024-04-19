@@ -27,3 +27,10 @@ Bucket("bucket1")
 Enum<0u8>()
 ;
 `
+
+export const MAINNET_GATEWAY_URL = 'https://mainnet.radixdlt.com'
+export const STOKENET_GATEWAY_URL = 'https://stokenet.radixdlt.com'
+export const TRANSACTION_PREVIEW_PATH = '/transaction/preview'
+export const TRANSACTION_CONSTRUCTION_PATH = '/transaction/construction'
+export const TRANSACTION_COMMITTED_DETAILS_PATH = '/transaction/committed-details'
+export const STATE_ENTITY_DETAILS_PATH = '/state/entity/details'

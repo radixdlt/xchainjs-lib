@@ -16,7 +16,16 @@ import {
 import { Address, Asset, assetAmount, assetToBase, baseAmount } from '@xchainjs/xchain-util'
 
 const axios = require('axios')
-import { RadixChain, TransferTransactionManifest } from './const'
+import {
+  MAINNET_GATEWAY_URL,
+  RadixChain,
+  STATE_ENTITY_DETAILS_PATH,
+  STOKENET_GATEWAY_URL,
+  TRANSACTION_COMMITTED_DETAILS_PATH,
+  TRANSACTION_CONSTRUCTION_PATH,
+  TRANSACTION_PREVIEW_PATH,
+  TransferTransactionManifest,
+} from './const'
 import { EntityDetailsResponse, Transaction } from './types/radix'
 
 /**
@@ -42,9 +51,10 @@ class Client extends BaseXChainClient {
    * @returns {Fee} An estimated transaction fee
    */
   async getFees(): Promise<Fees> {
-    const url = 'https://mainnet.radixdlt.com/transaction/preview'
+    const transactionPreviewUrl = `${this.getGatewayUrl()}${TRANSACTION_PREVIEW_PATH}`
+    const transactionConstructionUrl = `${this.getGatewayUrl()}${TRANSACTION_CONSTRUCTION_PATH}`
     try {
-      const constructionMetadataResponse = await axios.post('https://mainnet.radixdlt.com/transaction/construction')
+      const constructionMetadataResponse = await axios.post(transactionConstructionUrl)
       const transaction: Transaction = {
         manifest: TransferTransactionManifest,
         start_epoch_inclusive: constructionMetadataResponse.data.ledger_state.epoch,
@@ -63,7 +73,7 @@ class Client extends BaseXChainClient {
           skip_epoch_check: true,
         },
       }
-      const response = await axios.post(url, transaction)
+      const response = await axios.post(transactionPreviewUrl, transaction)
       const previewTransaction = response.data.receipt
       let totalFees = 0
       for (const key in previewTransaction.fee_summary) {
@@ -79,8 +89,7 @@ class Client extends BaseXChainClient {
       }
       return estimatedFees
     } catch (error) {
-      console.log(error)
-      throw new Error('Failed to fetch transaction data')
+      throw new Error('Failed to calculate the fees')
     }
   }
 
@@ -95,7 +104,6 @@ class Client extends BaseXChainClient {
   /**
    * Get the current address asynchronously for a given account.
    * @returns {Address} A promise resolving to the current address.
-   * @throws {Error} Thrown if the phrase has not been set before.
    * A phrase is needed to create a wallet and to derive an address from it.
    */
   async getAddressAsync(): Promise<string> {
@@ -116,6 +124,22 @@ class Client extends BaseXChainClient {
         return 'https://dashboard.radixdlt.com'
       case Network.Testnet:
         return 'https://stokenet-dashboard.radixdlt.com'
+      default:
+        throw new Error('Unsupported network')
+    }
+  }
+
+  /**
+   * Get the Gateway URL based on the network.
+   *
+   * @returns {string} The explorer URL based on the network.
+   */
+  getGatewayUrl(): string {
+    switch (this.getNetwork()) {
+      case Network.Mainnet:
+        return MAINNET_GATEWAY_URL
+      case Network.Testnet:
+        return STOKENET_GATEWAY_URL
       default:
         throw new Error('Unsupported network')
     }
@@ -168,10 +192,9 @@ class Client extends BaseXChainClient {
    * @param {Address} address - The address to retrieve the balance for.
    * @param {Asset[]} assets - Assets to retrieve the balance for (optional).
    * @returns {Promise<Balance[]>} An array containing the balance of the address.
-   * @throws {"Invalid asset"} Thrown when the provided asset is invalid.
    */
   async getBalance(address: Address, assets: Asset[]): Promise<Balance[]> {
-    const url = 'https://mainnet.radixdlt.com/state/entity/details'
+    const url = `${this.getGatewayUrl()}${STATE_ENTITY_DETAILS_PATH}`
     const requestBody = {
       addresses: [address],
       aggregation_level: 'Global',
@@ -205,7 +228,7 @@ class Client extends BaseXChainClient {
         return balances
       })
     } catch (error) {
-      throw new Error('Failed to fetch transaction data')
+      throw new Error('Failed to calculate balance')
     }
   }
 
@@ -223,14 +246,8 @@ class Client extends BaseXChainClient {
    * @param {string} txId The transaction id.
    * @returns {Tx} The transaction details of the given transaction id.
    */
-
-  /**
-   * Get the transaction details of a given transaction id.
-   * @param {string} txId The transaction id.
-   * @returns {RadixTxResponse} The transaction details of the given transaction id.
-   */
   async getTransactionData(txId: string): Promise<Tx> {
-    const url = 'https://mainnet.radixdlt.com/transaction/committed-details'
+    const url = `${this.getGatewayUrl()}${TRANSACTION_COMMITTED_DETAILS_PATH}`
     const requestBody = {
       intent_hash: txId,
       opt_ins: {
@@ -271,7 +288,6 @@ class Client extends BaseXChainClient {
       }
       return transaction
     } catch (error) {
-      console.log(error)
       throw new Error('Failed to fetch transaction data')
     }
   }
