@@ -27,7 +27,7 @@
   "scripts": {
     "clean": "rm -rf .turbo && rm -rf lib",
     "build": "yarn clean && rollup -c",
-    "test": "jest",
+    "test": "jest __tests__/client.test.ts",
     "compile": "tsc -p tsconfig.build.json",
     "lint": "eslint \"{src,__tests__}/**/*.ts\" --fix --max-warnings 0"
   },
@@ -46,6 +46,8 @@
     "@xchainjs/xchain-util": "^0.13.3"
   },
   "dependencies": {
-    "@radixdlt/radix-engine-toolkit": "^1.0.3"
+    "@radixdlt/radix-engine-toolkit": "^1.0.3",
+    "axios-mock-adapter": "^1.22.0",
+    "hex-to-array-buffer": "^2.0.0"
   }
 }

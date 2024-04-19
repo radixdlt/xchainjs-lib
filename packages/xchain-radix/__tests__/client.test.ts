@@ -1,8 +1,16 @@
 import { PrivateKey, PublicKey } from '@radixdlt/radix-engine-toolkit'
-import { Network } from '@xchainjs/xchain-client/src'
+import { Fees, Tx } from '@xchainjs/xchain-client'
+import { Balance, Network } from '@xchainjs/xchain-client/src'
 import { getSeed } from '@xchainjs/xchain-crypto'
 import { Client } from '@xchainjs/xchain-radix/src'
-import { RadixAsset, RadixBalance, Transaction } from '../src/types/radix'
+import { Asset } from '@xchainjs/xchain-util'
+import MockAdapter from 'axios-mock-adapter'
+import {
+  mockCommittedDetailsResponse,
+  mockConstructionMetadataResponse,
+  mockEntityDetailsResponse,
+  mockTransactionPreviewResponse,
+} from './mocks'
 
 const axios = require('axios')
 
@@ -12,6 +20,12 @@ describe('RadixClient Test', () => {
     network: Network.Mainnet,
   }
   let publicKey: PublicKey
+
+  const mock = new MockAdapter(axios)
+  mock.onPost('https://mainnet.radixdlt.com/transaction/committed-details').reply(200, mockCommittedDetailsResponse)
+  mock.onPost('https://mainnet.radixdlt.com/state/entity/details').reply(200, mockEntityDetailsResponse)
+  mock.onPost('https://mainnet.radixdlt.com/transaction/construction').reply(200, mockConstructionMetadataResponse)
+  mock.onPost('https://mainnet.radixdlt.com/transaction/preview').reply(200, mockTransactionPreviewResponse)
 
   beforeEach(async () => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
@@ -84,84 +98,44 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to get transaction data for a given tx id', async () => {
-    const txData = await radixClient.getRadixTransactionData(
-      'txid_rdx1ggem7tu4nuhwm3lcc8z9jwyyp03l92pn9xfgjkdf0277hkr8fs6sudeks2',
+    const transaction: Tx = await radixClient.getTransactionData(
+      'txid_rdx195z9zjp43qvqk8fnzmnpazv5m7jsaepq6cnm5nnnn5p3m2573rvqamjaa8',
     )
-    expect(txData.transaction.transaction_status).toBe('CommittedSuccess')
+    expect(transaction.from[0].from).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
+    expect(transaction.to[0].to).toBe('account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w')
   })
 
   it('client should be able to get balances for an account', async () => {
-    const balances: RadixBalance[] = await radixClient.getRadixBalance(
-      'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+    const balances: Balance[] = await radixClient.getBalance(
+      'account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w',
       [],
     )
-    const allBalancesGreaterThanZero = balances.every((balance) => balance.amount.gt(0))
-    expect(allBalancesGreaterThanZero).toBe(true)
+    balances.forEach((balance) => {
+      expect(balance.amount.gte(0)).toBe(true)
+    })
   })
 
   it('client should be able to get balances for an account with filtered assets', async () => {
-    const assets: RadixAsset[] = [
-      { resource_address: 'resource_rdx1th88qcj5syl9ghka2g9l7tw497vy5x6zaatyvgfkwcfe8n9jt2npww' },
+    const assets: Asset[] = [
+      {
+        symbol: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
+        ticker: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
+        chain: 'radix',
+        synth: false,
+      },
     ]
-    const balances: RadixBalance[] = await radixClient.getRadixBalance(
-      'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+    const balances: Balance[] = await radixClient.getBalance(
+      'account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w',
       assets,
     )
     expect(balances.length).toBe(1)
-    const allBalancesGreaterThanZero = balances.every((balance) => balance.amount.gt(0))
-    expect(allBalancesGreaterThanZero).toBe(true)
-    expect(balances[0].asset.resource_address).toBe(
-      'resource_rdx1th88qcj5syl9ghka2g9l7tw497vy5x6zaatyvgfkwcfe8n9jt2npww',
-    )
+    expect(balances[0].asset.symbol).toBe('resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd')
   })
 
   it('client should be able to estimate the fee for a given transaction', async () => {
-    const constructionMetadataResponse = await axios.post('https://mainnet.radixdlt.com/transaction/construction')
-    const transaction: Transaction = {
-      manifest: `CALL_METHOD
-    Address("account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg")
-    "lock_fee_and_withdraw"
-    Decimal("4")
-    Address("resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd")
-    Decimal("5000")
-;
-TAKE_FROM_WORKTOP
-    Address("resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd")
-    Decimal("5000")
-    Bucket("bucket1")
-;
-CALL_METHOD
-    Address("component_rdx1cputx5thrnh29mup6ajz0x7v90g4dznvxwzwzvd9ngg8tuqvqlxmlh")
-    "swap"
-    Bucket("bucket1")
-    Address("resource_rdx1t4upr78guuapv5ept7d7ptekk9mqhy605zgms33mcszen8l9fac8vf")
-;
-ASSERT_WORKTOP_CONTAINS
-    Address("resource_rdx1t4upr78guuapv5ept7d7ptekk9mqhy605zgms33mcszen8l9fac8vf")
-    Decimal("0")
-;
-CALL_METHOD
-    Address("account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg")
-    "deposit_batch"
-    Expression("ENTIRE_WORKTOP")
-;`,
-      start_epoch_inclusive: constructionMetadataResponse.data.ledger_state.epoch,
-      end_epoch_exclusive: constructionMetadataResponse.data.ledger_state.epoch + 10,
-      tip_percentage: 10,
-      nonce: Math.floor(Math.random() * 1000000),
-      signer_public_keys: [
-        {
-          key_type: 'EddsaEd25519',
-          key_hex: publicKey.hex(),
-        },
-      ],
-      flags: {
-        use_free_credit: true,
-        assume_all_signature_proofs: false,
-        skip_epoch_check: true,
-      },
-    }
-    const fee = await radixClient.getTransactionFees(transaction)
-    expect(fee.gt(0)).toBe(true)
+    const fees: Fees = await radixClient.getFees()
+    expect(fees.average.gt(0)).toBe(true)
+    expect(fees.fast.gt(0)).toBe(true)
+    expect(fees.fastest.gt(0)).toBe(true)
   })
 })

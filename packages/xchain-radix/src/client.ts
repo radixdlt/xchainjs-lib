@@ -3,19 +3,21 @@ import {
   AssetInfo,
   Balance,
   BaseXChainClient,
-  Fee,
+  FeeOption,
+  FeeType,
   Fees,
   Network,
   PreparedTx,
   Tx,
+  TxType,
   TxsPage,
   XChainClientParams,
 } from '@xchainjs/xchain-client'
-import { Address, assetAmount, assetToBase } from '@xchainjs/xchain-util'
+import { Address, Asset, assetAmount, assetToBase, baseAmount } from '@xchainjs/xchain-util'
 
 const axios = require('axios')
-import { RadixChain } from './const'
-import { EntityDetailsResponse, RadixAsset, RadixBalance, RadixTxResponse, Transaction } from './types/radix'
+import { RadixChain, TransferTransactionManifest } from './const'
+import { EntityDetailsResponse, Transaction } from './types/radix'
 
 /**
  * Custom Radix client
@@ -33,19 +35,34 @@ class Client extends BaseXChainClient {
     this.publicKey = publicKey
   }
 
-  getFees(): Promise<Fees> {
-    throw new Error('getFees is not implemented. Use getTransactionFee instead')
-  }
-
   /**
    * Get transaction an estimated fee for a given transaction
    *
    * @param {Transaction} transaction - The transaction to estimate the fee for
    * @returns {Fee} An estimated transaction fee
    */
-  async getTransactionFees(transaction: Transaction): Promise<Fee> {
+  async getFees(): Promise<Fees> {
     const url = 'https://mainnet.radixdlt.com/transaction/preview'
     try {
+      const constructionMetadataResponse = await axios.post('https://mainnet.radixdlt.com/transaction/construction')
+      const transaction: Transaction = {
+        manifest: TransferTransactionManifest,
+        start_epoch_inclusive: constructionMetadataResponse.data.ledger_state.epoch,
+        end_epoch_exclusive: constructionMetadataResponse.data.ledger_state.epoch + 10,
+        tip_percentage: 10,
+        nonce: Math.floor(Math.random() * 1000000),
+        signer_public_keys: [
+          {
+            key_type: 'EddsaEd25519',
+            key_hex: this.publicKey.hex(),
+          },
+        ],
+        flags: {
+          use_free_credit: true,
+          assume_all_signature_proofs: false,
+          skip_epoch_check: true,
+        },
+      }
       const response = await axios.post(url, transaction)
       const previewTransaction = response.data.receipt
       let totalFees = 0
@@ -54,9 +71,15 @@ class Client extends BaseXChainClient {
           totalFees += parseFloat(previewTransaction.fee_summary[key])
         }
       }
-      return assetToBase(assetAmount(totalFees))
+      const estimatedFees: Fees = {
+        type: FeeType.FlatFee,
+        [FeeOption.Average]: assetToBase(assetAmount(totalFees)),
+        [FeeOption.Fast]: assetToBase(assetAmount(totalFees)),
+        [FeeOption.Fastest]: assetToBase(assetAmount(totalFees)),
+      }
+      return estimatedFees
     } catch (error) {
-      // Handle errors
+      console.log(error)
       throw new Error('Failed to fetch transaction data')
     }
   }
@@ -136,12 +159,8 @@ class Client extends BaseXChainClient {
     )
   }
 
-  getBalance(): Promise<Balance[]> {
-    throw new Error('getBalance is not implemented. Use getRadixBalance instead')
-  }
-
-  filterByAssets(resource: any, assets: RadixAsset[]): boolean {
-    return assets.length === 0 || assets.some((asset) => asset.resource_address === resource.resource_address)
+  filterByAssets(resource: any, assets: Asset[]): boolean {
+    return assets.length === 0 || assets.some((asset) => asset.symbol === resource.resource_address)
   }
 
   /**
@@ -151,7 +170,7 @@ class Client extends BaseXChainClient {
    * @returns {Promise<Balance[]>} An array containing the balance of the address.
    * @throws {"Invalid asset"} Thrown when the provided asset is invalid.
    */
-  async getRadixBalance(address: Address, assets: RadixAsset[]): Promise<RadixBalance[]> {
+  async getBalance(address: Address, assets: Asset[]): Promise<Balance[]> {
     const url = 'https://mainnet.radixdlt.com/state/entity/details'
     const requestBody = {
       addresses: [address],
@@ -162,14 +181,14 @@ class Client extends BaseXChainClient {
       const response = await axios.post(url, requestBody)
       const entityDetails: EntityDetailsResponse = response.data
       return entityDetails.items.flatMap((item: any) => {
-        const balances: RadixBalance[] = []
+        const balances: Balance[] = []
         // Check for fungible_resources
         if (item.fungible_resources && item.fungible_resources.items) {
           const fungibleBalances = item.fungible_resources.items
             .filter((resource: any) => this.filterByAssets(resource, assets))
             .map((resource: any) => ({
-              asset: { resource_address: resource.resource_address },
-              amount: assetToBase(assetAmount(resource.amount)),
+              asset: { symbol: resource.resource_address },
+              amount: baseAmount(resource.amount),
             }))
           balances.push(...fungibleBalances)
         }
@@ -178,15 +197,14 @@ class Client extends BaseXChainClient {
           const nonFungibleBalances = item.non_fungible_resources.items
             .filter((resource: any) => this.filterByAssets(resource, assets))
             .map((resource: any) => ({
-              asset: { resource_address: resource.resource_address },
-              amount: assetToBase(assetAmount(resource.amount)),
+              asset: { symbol: resource.resource_address },
+              amount: baseAmount(resource.amount),
             }))
           balances.push(...nonFungibleBalances)
         }
         return balances
       })
     } catch (error) {
-      // Handle errors
       throw new Error('Failed to fetch transaction data')
     }
   }
@@ -205,27 +223,55 @@ class Client extends BaseXChainClient {
    * @param {string} txId The transaction id.
    * @returns {Tx} The transaction details of the given transaction id.
    */
-  async getTransactionData(): Promise<Tx> {
-    throw new Error('getTransactionData is not implemented. Use getRadixTransactionData instead')
-  }
 
   /**
    * Get the transaction details of a given transaction id.
    * @param {string} txId The transaction id.
    * @returns {RadixTxResponse} The transaction details of the given transaction id.
    */
-  async getRadixTransactionData(txId: string): Promise<RadixTxResponse> {
+  async getTransactionData(txId: string): Promise<Tx> {
     const url = 'https://mainnet.radixdlt.com/transaction/committed-details'
     const requestBody = {
       intent_hash: txId,
+      opt_ins: {
+        manifest_instructions: true,
+        raw_hex: true,
+      },
     }
 
     try {
       const response = await axios.post(url, requestBody)
-      const transactionData: RadixTxResponse = response.data
-      return transactionData
+      const binaryString = Buffer.from(response.data.transaction.raw_hex, 'hex').toString('binary')
+      const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
+      const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
+      const withdrawAccount = Object.keys(transactionSummary.withdraws)[0]
+      const depositAccount = Object.keys(transactionSummary.deposits)[0]
+      const withdrawResource = Object.keys(transactionSummary.withdraws[withdrawAccount])[0]
+      const withdrawAmount: number = transactionSummary.withdraws[withdrawAccount][withdrawResource].toNumber()
+
+      const transaction: Tx = {
+        from: [
+          {
+            from: withdrawAccount,
+            amount: baseAmount(withdrawAmount),
+            asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
+          },
+        ],
+        to: [
+          {
+            to: depositAccount,
+            amount: baseAmount(withdrawAmount),
+            asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
+          },
+        ],
+        date: new Date(response.data.transaction.confirmed_at),
+        type: TxType.Transfer,
+        hash: 'abc',
+        asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
+      }
+      return transaction
     } catch (error) {
-      // Handle errors
+      console.log(error)
       throw new Error('Failed to fetch transaction data')
     }
   }
