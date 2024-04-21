@@ -9,6 +9,7 @@ import {
   Network,
   PreparedTx,
   Tx,
+  TxHistoryParams,
   TxType,
   TxsPage,
   XChainClientParams,
@@ -21,6 +22,7 @@ import {
   RadixChain,
   STATE_ENTITY_DETAILS_PATH,
   STOKENET_GATEWAY_URL,
+  STREAM_TRANSACTIONS_PATH,
   TRANSACTION_COMMITTED_DETAILS_PATH,
   TRANSACTION_CONSTRUCTION_PATH,
   TRANSACTION_PREVIEW_PATH,
@@ -237,8 +239,55 @@ class Client extends BaseXChainClient {
    * @param {TxHistoryParams} params The options to get transaction history. (optional)
    * @returns {TxsPage} The transaction history.
    */
-  async getTransactions(): Promise<TxsPage> {
-    throw new Error('Not implemented')
+  async getTransactions(params: TxHistoryParams): Promise<TxsPage> {
+    const url = `${this.getGatewayUrl()}${STREAM_TRANSACTIONS_PATH}`
+    const transactions = []
+
+    try {
+      let requestBody = this.constructRequestBody(params)
+      let response = await axios.post(url, requestBody)
+
+      while (response.data.items.length > 0) {
+        for (const tx of response.data.items) {
+          try {
+            const transaction: Tx = await this.convertTransactionFromHex(tx.raw_hex, tx.confirmed_at, tx.intent_hash)
+            transactions.push(transaction)
+          } catch (error) {}
+        }
+
+        // If limit is greater than 100 and there are more transactions, fetch the next page
+        if (params.limit && params.limit > 100 && response.data.next_cursor) {
+          requestBody = this.constructRequestBody(params, response.data.next_cursor)
+          response = await axios.post(url, requestBody)
+        } else {
+          break
+        }
+      }
+
+      return { total: transactions.length, txs: transactions }
+    } catch (error) {
+      throw new Error('Failed to get transactions')
+    }
+  }
+
+  private constructRequestBody(params: TxHistoryParams, cursor?: string) {
+    const requestBody: any = {
+      affected_global_entities_filter: [params.address],
+      limit_per_page: params.limit && params.limit > 100 ? 100 : params.limit,
+      manifest_resources_filter: [params.asset],
+      from_ledger_state: {
+        state_version: params.offset,
+      },
+      opt_ins: {
+        raw_hex: true,
+      },
+    }
+
+    if (cursor) {
+      requestBody.cursor = cursor
+    }
+
+    return requestBody
   }
 
   /**
@@ -258,38 +307,47 @@ class Client extends BaseXChainClient {
 
     try {
       const response = await axios.post(url, requestBody)
-      const binaryString = Buffer.from(response.data.transaction.raw_hex, 'hex').toString('binary')
-      const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
-      const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
-      const withdrawAccount = Object.keys(transactionSummary.withdraws)[0]
-      const depositAccount = Object.keys(transactionSummary.deposits)[0]
-      const withdrawResource = Object.keys(transactionSummary.withdraws[withdrawAccount])[0]
-      const withdrawAmount: number = transactionSummary.withdraws[withdrawAccount][withdrawResource].toNumber()
-
-      const transaction: Tx = {
-        from: [
-          {
-            from: withdrawAccount,
-            amount: baseAmount(withdrawAmount),
-            asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
-          },
-        ],
-        to: [
-          {
-            to: depositAccount,
-            amount: baseAmount(withdrawAmount),
-            asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
-          },
-        ],
-        date: new Date(response.data.transaction.confirmed_at),
-        type: TxType.Transfer,
-        hash: 'abc',
-        asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
-      }
+      const transaction: Tx = await this.convertTransactionFromHex(
+        response.data.transaction.raw_hex,
+        response.data.transaction.confirmed_at,
+        response.data.transaction.intent_hash,
+      )
       return transaction
     } catch (error) {
       throw new Error('Failed to fetch transaction data')
     }
+  }
+
+  async convertTransactionFromHex(transaction_hex: string, confirmed_at: string, intent_hash: string): Promise<Tx> {
+    const binaryString = Buffer.from(transaction_hex, 'hex').toString('binary')
+    const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
+    const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
+    const withdrawAccount = Object.keys(transactionSummary.withdraws)[0]
+    const depositAccount = Object.keys(transactionSummary.deposits)[0]
+    const withdrawResource = Object.keys(transactionSummary.withdraws[withdrawAccount])[0]
+    const withdrawAmount: number = transactionSummary.withdraws[withdrawAccount][withdrawResource].toNumber()
+
+    const transaction: Tx = {
+      from: [
+        {
+          from: withdrawAccount,
+          amount: baseAmount(withdrawAmount),
+          asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
+        },
+      ],
+      to: [
+        {
+          to: depositAccount,
+          amount: baseAmount(withdrawAmount),
+          asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
+        },
+      ],
+      date: new Date(confirmed_at),
+      type: TxType.Transfer,
+      hash: intent_hash,
+      asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
+    }
+    return transaction
   }
 
   async transfer(): Promise<string> {

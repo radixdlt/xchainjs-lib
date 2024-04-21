@@ -9,6 +9,7 @@ import {
   mockCommittedDetailsResponse,
   mockConstructionMetadataResponse,
   mockEntityDetailsResponse,
+  mockStreamTransactionsResponse,
   mockTransactionPreviewResponse,
 } from './mocks'
 
@@ -26,6 +27,7 @@ describe('RadixClient Test', () => {
   mock.onPost('https://mainnet.radixdlt.com/state/entity/details').reply(200, mockEntityDetailsResponse)
   mock.onPost('https://mainnet.radixdlt.com/transaction/construction').reply(200, mockConstructionMetadataResponse)
   mock.onPost('https://mainnet.radixdlt.com/transaction/preview').reply(200, mockTransactionPreviewResponse)
+  mock.onPost('https://mainnet.radixdlt.com/stream/transactions').reply(200, mockStreamTransactionsResponse)
 
   beforeEach(async () => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
@@ -137,5 +139,19 @@ describe('RadixClient Test', () => {
     expect(fees.average.gt(0)).toBe(true)
     expect(fees.fast.gt(0)).toBe(true)
     expect(fees.fastest.gt(0)).toBe(true)
+  })
+
+  it('client should be able to get transactions for a given account', async () => {
+    const transactionsHistoryParams = {
+      address: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+      offset: 72533720,
+      limit: 200,
+      asset: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
+    }
+    const txs = await (await radixClient.getTransactions(transactionsHistoryParams)).txs
+    txs.forEach((tx) => {
+      expect(tx.from).not.toBeUndefined()
+      expect(tx.to).not.toBeUndefined()
+    })
   })
 })
