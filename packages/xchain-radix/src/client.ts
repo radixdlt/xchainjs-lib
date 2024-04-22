@@ -1,4 +1,10 @@
-import { LTSRadixEngineToolkit, NetworkId, PublicKey, RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit'
+import {
+  LTSRadixEngineToolkit,
+  NetworkId,
+  PrivateKey,
+  RadixEngineToolkit,
+  SimpleTransactionBuilder,
+} from '@radixdlt/radix-engine-toolkit'
 import {
   AssetInfo,
   Balance,
@@ -10,14 +16,17 @@ import {
   PreparedTx,
   Tx,
   TxHistoryParams,
+  TxParams,
   TxType,
   TxsPage,
   XChainClientParams,
 } from '@xchainjs/xchain-client'
+import { getSeed } from '@xchainjs/xchain-crypto/lib'
 import { Address, Asset, assetAmount, assetToBase, baseAmount } from '@xchainjs/xchain-util'
-
-const axios = require('axios')
+import axios from 'axios'
 import {
+  AssetXRD,
+  KeyType,
   MAINNET_GATEWAY_URL,
   RadixChain,
   STATE_ENTITY_DETAILS_PATH,
@@ -27,6 +36,7 @@ import {
   TRANSACTION_CONSTRUCTION_PATH,
   TRANSACTION_PREVIEW_PATH,
   TransferTransactionManifest,
+  XRD_DECIMAL,
 } from './const'
 import { EntityDetailsResponse, Transaction } from './types/radix'
 
@@ -35,22 +45,21 @@ import { EntityDetailsResponse, Transaction } from './types/radix'
  */
 
 class Client extends BaseXChainClient {
-  publicKey: PublicKey
-  /**
-   * Constructor
-   * Client has to be initialised with network type and public key.
-   * @param {XChainClientParams} params
-   */
-  constructor({ network = Network.Mainnet }: XChainClientParams, publicKey: PublicKey) {
-    super(RadixChain, { network })
-    this.publicKey = publicKey
+  privateKey: PrivateKey
+  constructor(params: XChainClientParams, keyType: KeyType) {
+    super(RadixChain, { network: params.network, phrase: params.phrase })
+    const seed = getSeed(this.phrase)
+    const hexString = seed.toString('hex').substring(0, 64)
+    if (keyType == KeyType.Ed25519) {
+      this.privateKey = new PrivateKey.Ed25519(hexString)
+    } else {
+      this.privateKey = new PrivateKey.Secp256k1(hexString)
+    }
   }
-
   /**
-   * Get transaction an estimated fee for a given transaction
+   * Get an estimated fee for a given transaction
    *
-   * @param {Transaction} transaction - The transaction to estimate the fee for
-   * @returns {Fee} An estimated transaction fee
+   * @returns {Fee} An estimated fee
    */
   async getFees(): Promise<Fees> {
     const transactionPreviewUrl = `${this.getGatewayUrl()}${TRANSACTION_PREVIEW_PATH}`
@@ -66,7 +75,7 @@ class Client extends BaseXChainClient {
         signer_public_keys: [
           {
             key_type: 'EddsaEd25519',
-            key_hex: this.publicKey.hex(),
+            key_hex: this.privateKey.publicKey().hex(),
           },
         ],
         flags: {
@@ -111,7 +120,7 @@ class Client extends BaseXChainClient {
   async getAddressAsync(): Promise<string> {
     const network = this.getNetwork()
     const networkId = network === Network.Mainnet ? NetworkId.Mainnet : NetworkId.Stokenet
-    const address = await LTSRadixEngineToolkit.Derive.virtualAccountAddress(this.publicKey, networkId)
+    const address = await LTSRadixEngineToolkit.Derive.virtualAccountAddress(this.privateKey.publicKey(), networkId)
     return address.toString()
   }
 
@@ -350,20 +359,62 @@ class Client extends BaseXChainClient {
     return transaction
   }
 
-  async transfer(): Promise<string> {
-    throw new Error('Not implemented')
+  async transfer(params: TxParams): Promise<string> {
+    const networkId = this.network === Network.Mainnet ? NetworkId.Mainnet : NetworkId.Stokenet
+    const transactionConstructionUrl = `${this.getGatewayUrl()}${TRANSACTION_CONSTRUCTION_PATH}`
+    const fromAccount = await this.getAddressAsync()
+    try {
+      const constructionMetadataResponse = await axios.post(transactionConstructionUrl)
+      const builder = await SimpleTransactionBuilder.new({
+        networkId: networkId,
+        validFromEpoch: constructionMetadataResponse.data.ledger_state.epoch,
+        fromAccount: fromAccount,
+        signerPublicKey: this.privateKey.publicKey(),
+      })
+
+      const transaction = await builder
+        .transferFungible({
+          toAccount: JSON.parse((await this.prepareTx(params)).rawUnsignedTx)['toAccount'],
+          resourceAddress: JSON.parse((await this.prepareTx(params)).rawUnsignedTx)['resourceAddress'],
+          amount: JSON.parse((await this.prepareTx(params)).rawUnsignedTx)['amount'],
+        })
+        .compileIntent()
+        .compileNotarizedAsync(async (hash) => this.privateKey.signToSignature(hash))
+      return transaction.toHex()
+    } catch (error) {
+      throw new Error('Failed to transfer')
+    }
   }
 
   async broadcastTx(): Promise<string> {
     throw new Error('Not implemented')
   }
 
-  async prepareTx(): Promise<PreparedTx> {
-    throw new Error('Not implemented')
+  async prepareTx(params: TxParams): Promise<PreparedTx> {
+    if (params.asset == undefined) {
+      throw new Error('asset can not be undefined')
+    }
+    const transaction = {
+      toAccount: params.recipient,
+      resourceAddress: params.asset.symbol,
+      amount: params.amount.amount().toString(),
+    }
+    const prepareTx: PreparedTx = {
+      rawUnsignedTx: JSON.stringify(transaction),
+    }
+    return prepareTx
   }
 
+  /**
+   * Get asset information.
+   * @returns Asset information.
+   */
   getAssetInfo(): AssetInfo {
-    throw new Error('Method not implemented.')
+    const assetInfo: AssetInfo = {
+      asset: AssetXRD,
+      decimal: XRD_DECIMAL,
+    }
+    return assetInfo
   }
 }
 

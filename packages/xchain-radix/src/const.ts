@@ -1,3 +1,5 @@
+import { Asset } from '@xchainjs/xchain-util/lib'
+
 /**
  * Chain identifier for Radix.
  * This constant represents the identifier for the Radix Chain.
@@ -35,3 +37,24 @@ export const TRANSACTION_CONSTRUCTION_PATH = '/transaction/construction'
 export const TRANSACTION_COMMITTED_DETAILS_PATH = '/transaction/committed-details'
 export const STATE_ENTITY_DETAILS_PATH = '/state/entity/details'
 export const STREAM_TRANSACTIONS_PATH = '/stream/transactions'
+
+export enum KeyType {
+  Ed25519 = 'Ed25519',
+  Secp256k1 = 'Secp256k1',
+}
+
+export const AssetXRD: Asset = {
+  chain: RadixChain,
+  symbol: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
+  ticker: 'XRD',
+  synth: false,
+}
+
+export const XRD_DECIMAL = 8
+
+export const XrdAsset: Asset = {
+  symbol: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
+  ticker: 'XRD',
+  synth: false,
+  chain: RadixChain,
+}

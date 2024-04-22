@@ -1,10 +1,11 @@
-import { PrivateKey, PublicKey } from '@radixdlt/radix-engine-toolkit'
+import { LTSRadixEngineToolkit } from '@radixdlt/radix-engine-toolkit'
 import { Fees, Tx } from '@xchainjs/xchain-client'
-import { Balance, Network } from '@xchainjs/xchain-client/src'
-import { getSeed } from '@xchainjs/xchain-crypto'
+import { Balance, Network, TxParams, XChainClientParams } from '@xchainjs/xchain-client/src'
 import { Client } from '@xchainjs/xchain-radix/src'
 import { Asset } from '@xchainjs/xchain-util'
+import { baseAmount } from '@xchainjs/xchain-util'
 import MockAdapter from 'axios-mock-adapter'
+import { KeyType, XrdAsset } from '../src/const'
 import {
   mockCommittedDetailsResponse,
   mockConstructionMetadataResponse,
@@ -17,11 +18,6 @@ const axios = require('axios')
 
 describe('RadixClient Test', () => {
   let radixClient: Client
-  const params = {
-    network: Network.Mainnet,
-  }
-  let publicKey: PublicKey
-
   const mock = new MockAdapter(axios)
   mock.onPost('https://mainnet.radixdlt.com/transaction/committed-details').reply(200, mockCommittedDetailsResponse)
   mock.onPost('https://mainnet.radixdlt.com/state/entity/details').reply(200, mockEntityDetailsResponse)
@@ -31,11 +27,11 @@ describe('RadixClient Test', () => {
 
   beforeEach(async () => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
-    const seed = getSeed(phrase)
-    const hexString = seed.toString('hex').substring(0, 64)
-    const privateKey = new PrivateKey.Ed25519(hexString)
-    publicKey = privateKey.publicKey()
-    radixClient = new Client(params, publicKey)
+    const params: XChainClientParams = {
+      network: Network.Mainnet,
+      phrase: phrase,
+    }
+    radixClient = new Client(params, KeyType.Ed25519)
   })
 
   it('client should be able to get address', async () => {
@@ -60,8 +56,13 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to get the explorer url for stokenet', async () => {
-    radixClient = new Client({ network: Network.Testnet }, publicKey)
-    const explorerAddress = radixClient.getExplorerUrl()
+    const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
+    const params: XChainClientParams = {
+      network: Network.Testnet,
+      phrase: phrase,
+    }
+    const stokenetRadixClient = new Client(params, KeyType.Ed25519)
+    const explorerAddress = stokenetRadixClient.getExplorerUrl()
     expect(explorerAddress).toBe('https://stokenet-dashboard.radixdlt.com')
   })
 
@@ -153,5 +154,39 @@ describe('RadixClient Test', () => {
       expect(tx.from).not.toBeUndefined()
       expect(tx.to).not.toBeUndefined()
     })
+  })
+
+  it('client should be able prepare a transaction', async () => {
+    const txParams: TxParams = {
+      asset: XrdAsset,
+      amount: baseAmount(1000),
+      recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+    }
+    const preparedTx = JSON.parse((await radixClient.prepareTx(txParams)).rawUnsignedTx)
+    expect(preparedTx['amount']).toBe('1000')
+    expect(preparedTx['resourceAddress']).toBe(XrdAsset.symbol)
+    expect(preparedTx['toAccount']).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
+  })
+
+  it('client should be able transfer', async () => {
+    const txParams: TxParams = {
+      asset: XrdAsset,
+      amount: baseAmount(1000),
+      recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+    }
+    const transferTransaction = await radixClient.transfer(txParams)
+    const binaryString = Buffer.from(transferTransaction, 'hex').toString('binary')
+    const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
+    const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
+    const depositAccount = Object.keys(transactionSummary.deposits)[0]
+    const depositResource = Object.keys(transactionSummary.deposits[depositAccount])[0]
+    const depositAmount: number =
+      transactionSummary.deposits[depositAccount][
+        'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd'
+      ].toNumber()
+
+    expect(depositAccount).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
+    expect(depositResource).toBe('resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd')
+    expect(depositAmount).toBe(1000)
   })
 })
