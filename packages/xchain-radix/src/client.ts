@@ -35,6 +35,7 @@ import {
   TRANSACTION_COMMITTED_DETAILS_PATH,
   TRANSACTION_CONSTRUCTION_PATH,
   TRANSACTION_PREVIEW_PATH,
+  TRANSACTION_SUBMIT_PATH,
   TransferTransactionManifest,
   XRD_DECIMAL,
 } from './const'
@@ -386,8 +387,18 @@ class Client extends BaseXChainClient {
     }
   }
 
-  async broadcastTx(): Promise<string> {
-    throw new Error('Not implemented')
+  async broadcastTx(txHex: string): Promise<string> {
+    const url = `${this.getGatewayUrl()}${TRANSACTION_SUBMIT_PATH}`
+    const requestBody = {
+      notarized_transaction_hex: txHex,
+    }
+
+    try {
+      const response = await axios.post(url, requestBody)
+      return JSON.stringify(response.data)
+    } catch (error) {
+      throw new Error('Failed to broadcast tx')
+    }
   }
 
   async prepareTx(params: TxParams): Promise<PreparedTx> {

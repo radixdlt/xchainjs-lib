@@ -487,7 +487,7 @@ export const mockConstructionMetadataResponse = {
     network: 'mainnet',
     state_version: 73433937,
     proposer_round_timestamp: '2024-04-19T19:12:29.607Z',
-    epoch: 91345,
+    epoch: 92167,
     round: 405,
   },
 }
@@ -582,3 +582,5 @@ export const mockStreamTransactionsResponse = {
     },
   ],
 }
+
+export const submitTransactionResponse = { duplicate: false }

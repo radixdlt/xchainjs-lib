@@ -12,6 +12,7 @@ import {
   mockEntityDetailsResponse,
   mockStreamTransactionsResponse,
   mockTransactionPreviewResponse,
+  submitTransactionResponse,
 } from './mocks'
 
 const axios = require('axios')
@@ -24,6 +25,7 @@ describe('RadixClient Test', () => {
   mock.onPost('https://mainnet.radixdlt.com/transaction/construction').reply(200, mockConstructionMetadataResponse)
   mock.onPost('https://mainnet.radixdlt.com/transaction/preview').reply(200, mockTransactionPreviewResponse)
   mock.onPost('https://mainnet.radixdlt.com/stream/transactions').reply(200, mockStreamTransactionsResponse)
+  mock.onPost('https://mainnet.radixdlt.com/transaction/submit').reply(200, submitTransactionResponse)
 
   beforeEach(async () => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
@@ -188,5 +190,17 @@ describe('RadixClient Test', () => {
     expect(depositAccount).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
     expect(depositResource).toBe('resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd')
     expect(depositAmount).toBe(1000)
+  })
+
+  it('client should be able broadcast tx', async () => {
+    const txParams: TxParams = {
+      asset: XrdAsset,
+      amount: baseAmount(1000),
+      recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+    }
+    const transferTransactionHex = await radixClient.transfer(txParams)
+    const broadcastResponse = await radixClient.broadcastTx(transferTransactionHex)
+    const parsedResponse = JSON.parse(broadcastResponse)
+    expect(parsedResponse['duplicate']).toBe(false)
   })
 })

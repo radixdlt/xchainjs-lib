@@ -35,6 +35,7 @@ export const STOKENET_GATEWAY_URL = 'https://stokenet.radixdlt.com'
 export const TRANSACTION_PREVIEW_PATH = '/transaction/preview'
 export const TRANSACTION_CONSTRUCTION_PATH = '/transaction/construction'
 export const TRANSACTION_COMMITTED_DETAILS_PATH = '/transaction/committed-details'
+export const TRANSACTION_SUBMIT_PATH = '/transaction/submit'
 export const STATE_ENTITY_DETAILS_PATH = '/state/entity/details'
 export const STREAM_TRANSACTIONS_PATH = '/stream/transactions'
 
