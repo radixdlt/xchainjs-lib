@@ -1,3 +1,4 @@
+import { CommittedTransactionInfo, GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk'
 import {
   LTSRadixEngineToolkit,
   NetworkId,
@@ -31,7 +32,6 @@ import {
   RadixChain,
   STATE_ENTITY_DETAILS_PATH,
   STOKENET_GATEWAY_URL,
-  STREAM_TRANSACTIONS_PATH,
   TRANSACTION_COMMITTED_DETAILS_PATH,
   TRANSACTION_CONSTRUCTION_PATH,
   TRANSACTION_PREVIEW_PATH,
@@ -47,6 +47,7 @@ import { EntityDetailsResponse, Transaction } from './types/radix'
 
 class Client extends BaseXChainClient {
   privateKey: PrivateKey
+  gatewayApiClient: GatewayApiClient
   constructor(params: XChainClientParams, keyType: KeyType) {
     super(RadixChain, { network: params.network, phrase: params.phrase })
     const seed = getSeed(this.phrase)
@@ -56,6 +57,10 @@ class Client extends BaseXChainClient {
     } else {
       this.privateKey = new PrivateKey.Secp256k1(hexString)
     }
+    this.gatewayApiClient = GatewayApiClient.initialize({
+      networkId: this.getRadixNetwork(),
+      applicationName: 'xchainjs',
+    })
   }
   /**
    * Get an estimated fee for a test transaction that involves sending
@@ -276,54 +281,47 @@ class Client extends BaseXChainClient {
    * @returns {TxsPage} The transaction history.
    */
   async getTransactions(params: TxHistoryParams): Promise<TxsPage> {
-    const url = `${this.getGatewayUrl()}${STREAM_TRANSACTIONS_PATH}`
-    const transactions = []
+    let hasNextPage = true
+    let nextCursor = undefined
+    let committedTransactions: CommittedTransactionInfo[] = []
+    const txList: TxsPage = { txs: [], total: 0 }
 
-    try {
-      let requestBody = this.constructRequestBody(params)
-      let response = await axios.post(url, requestBody)
-
-      while (response.data.items.length > 0) {
-        for (const tx of response.data.items) {
-          try {
-            const transaction: Tx = await this.convertTransactionFromHex(tx.raw_hex, tx.confirmed_at, tx.intent_hash)
-            transactions.push(transaction)
-          } catch (error) {}
-        }
-
-        // If limit is greater than 100 and there are more transactions, fetch the next page
-        if (params.limit && params.limit > 100 && response.data.next_cursor) {
-          requestBody = this.constructRequestBody(params, response.data.next_cursor)
-          response = await axios.post(url, requestBody)
-        } else {
-          break
-        }
+    while (hasNextPage) {
+      const response = await this.gatewayApiClient.stream.innerClient.streamTransactions({
+        streamTransactionsRequest: {
+          affected_global_entities_filter: [params.address],
+          limit_per_page: params.limit && params.limit > 100 ? 100 : params.limit,
+          from_ledger_state: {
+            state_version: params.offset,
+          },
+          manifest_resources_filter: [params.asset || ''],
+          opt_ins: {
+            raw_hex: true,
+          },
+          cursor: nextCursor,
+        },
+      })
+      committedTransactions = committedTransactions.concat(response.items)
+      if (response.next_cursor) {
+        nextCursor = response.next_cursor
+      } else {
+        hasNextPage = false
       }
-
-      return { total: transactions.length, txs: transactions }
-    } catch (error) {
-      throw new Error('Failed to get transactions')
     }
-  }
-
-  private constructRequestBody(params: TxHistoryParams, cursor?: string) {
-    const requestBody: any = {
-      affected_global_entities_filter: [params.address],
-      limit_per_page: params.limit && params.limit > 100 ? 100 : params.limit,
-      manifest_resources_filter: [params.asset],
-      from_ledger_state: {
-        state_version: params.offset,
-      },
-      opt_ins: {
-        raw_hex: true,
-      },
+    for (const txn of committedTransactions) {
+      try {
+        if (
+          txn.raw_hex !== undefined &&
+          txn.confirmed_at !== null &&
+          txn.intent_hash !== undefined &&
+          txn.confirmed_at !== undefined
+        ) {
+          const transaction: Tx = await this.convertTransactionFromHex(txn.raw_hex, txn.intent_hash, txn.confirmed_at)
+          txList.txs.push(transaction)
+        }
+      } catch (error) {}
     }
-
-    if (cursor) {
-      requestBody.cursor = cursor
-    }
-
-    return requestBody
+    return txList
   }
 
   /**
@@ -364,7 +362,7 @@ class Client extends BaseXChainClient {
    * @param intent_hash - The transaction intent hash
    * @returns a transaction in Tx type
    */
-  async convertTransactionFromHex(transaction_hex: string, confirmed_at: string, intent_hash: string): Promise<Tx> {
+  async convertTransactionFromHex(transaction_hex: string, intent_hash: string, confirmed_at: Date): Promise<Tx> {
     const binaryString = Buffer.from(transaction_hex, 'hex').toString('binary')
     const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
     const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
@@ -388,7 +386,7 @@ class Client extends BaseXChainClient {
           asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
         },
       ],
-      date: new Date(confirmed_at),
+      date: confirmed_at,
       type: TxType.Transfer,
       hash: intent_hash,
       asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },

@@ -5,7 +5,6 @@ import { Client } from '@xchainjs/xchain-radix/src'
 import { Asset } from '@xchainjs/xchain-util'
 import { baseAmount } from '@xchainjs/xchain-util'
 import MockAdapter from 'axios-mock-adapter'
-import { KeyType, XrdAsset } from '../src/const'
 import {
   mockCommittedDetailsResponse,
   mockConstructionMetadataResponse,
@@ -13,7 +12,8 @@ import {
   mockStreamTransactionsResponse,
   mockTransactionPreviewResponse,
   submitTransactionResponse,
-} from './mocks'
+} from '../__mocks__/mocks'
+import { KeyType, XrdAsset } from '../src/const'
 
 const axios = require('axios')
 
@@ -152,6 +152,7 @@ describe('RadixClient Test', () => {
       asset: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
     }
     const txs = await (await radixClient.getTransactions(transactionsHistoryParams)).txs
+    console.log(txs)
     txs.forEach((tx) => {
       expect(tx.from).not.toBeUndefined()
       expect(tx.to).not.toBeUndefined()

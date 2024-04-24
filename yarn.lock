@@ -2308,6 +2308,11 @@
   dependencies:
     "@psf/bitcoincash-ops" "^2.0.0"
 
+"@radixdlt/babylon-gateway-api-sdk@^1.4.1":
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/@radixdlt/babylon-gateway-api-sdk/-/babylon-gateway-api-sdk-1.4.1.tgz#affdb0b5a137aa5b89a75e1f806b33061c36a8ab"
+  integrity sha512-oXkhGe80mZ5rGW1ZNnB1H03YpK7E2lhjW4P4Rw+zEC9QtgYl4xv5dVUjL4+g+yEPeXRKHNxkj4ko5v7jW+sh8A==
+
 "@radixdlt/radix-engine-toolkit@^1.0.3":
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/@radixdlt/radix-engine-toolkit/-/radix-engine-toolkit-1.0.3.tgz#3326d5a944f2a7a1b83425cf3cdf9fe9e1254324"
