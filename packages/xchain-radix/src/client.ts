@@ -58,7 +58,8 @@ class Client extends BaseXChainClient {
     }
   }
   /**
-   * Get an estimated fee for a given transaction
+   * Get an estimated fee for a test transaction that involves sending
+   * XRD from one account to another
    *
    * @returns {Fee} An estimated fee
    */
@@ -195,6 +196,12 @@ class Client extends BaseXChainClient {
     )
   }
 
+  /**
+   * Helper method to check if a resource is included in a list of assets
+   * @param resource - The resource to be checked
+   * @param assets - The list of assets whret the resource is included
+   * @returns True if the resource is included in the assets list, False otherwise
+   */
   filterByAssets(resource: any, assets: Asset[]): boolean {
     return assets.length === 0 || assets.some((asset) => asset.symbol === resource.resource_address)
   }
@@ -302,6 +309,9 @@ class Client extends BaseXChainClient {
 
   /**
    * Get the transaction details of a given transaction id.
+   * This method uses LTSRadixEngineToolkit.Transaction.summarizeTransaction
+   * to convert a transaction hex to a transaction summary. If the transaction was not built with
+   * the SimpleTransactionBuilder, the method will fail to get the transaction data
    * @param {string} txId The transaction id.
    * @returns {Tx} The transaction details of the given transaction id.
    */
@@ -328,6 +338,13 @@ class Client extends BaseXChainClient {
     }
   }
 
+  /**
+   * Helper function to convert a transaction in hex, returned by the gateway to a Tx type
+   * @param transaction_hex - The raw_hex returned by the gateway for a transaction id
+   * @param confirmed_at - The confirmed_at date for the transaction
+   * @param intent_hash - The transaction intent hash
+   * @returns a transaction in Tx type
+   */
   async convertTransactionFromHex(transaction_hex: string, confirmed_at: string, intent_hash: string): Promise<Tx> {
     const binaryString = Buffer.from(transaction_hex, 'hex').toString('binary')
     const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
@@ -360,6 +377,12 @@ class Client extends BaseXChainClient {
     return transaction
   }
 
+  /**
+   * Creates a transaction using the SimpleTransactionBuilder, signs it with the
+   * private key and returns the signed hex
+   * @param params - The transactions params
+   * @returns A signed transaction hex
+   */
   async transfer(params: TxParams): Promise<string> {
     const networkId = this.network === Network.Mainnet ? NetworkId.Mainnet : NetworkId.Stokenet
     const transactionConstructionUrl = `${this.getGatewayUrl()}${TRANSACTION_CONSTRUCTION_PATH}`
@@ -386,7 +409,11 @@ class Client extends BaseXChainClient {
       throw new Error('Failed to transfer')
     }
   }
-
+  /**
+   * Submits a transaction
+   * @param txHex - The transaction hex build with the transfer method
+   * @returns - The response from the gateway
+   */
   async broadcastTx(txHex: string): Promise<string> {
     const url = `${this.getGatewayUrl()}${TRANSACTION_SUBMIT_PATH}`
     const requestBody = {
@@ -401,6 +428,12 @@ class Client extends BaseXChainClient {
     }
   }
 
+  /**
+   * Prepares a transaction to be used by the transfer method
+   * It will include a non signed transaction
+   * @param params - The transaction params
+   * @returns a PreparedTx
+   */
   async prepareTx(params: TxParams): Promise<PreparedTx> {
     if (params.asset == undefined) {
       throw new Error('asset can not be undefined')
