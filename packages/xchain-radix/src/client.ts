@@ -106,6 +106,26 @@ class Client extends BaseXChainClient {
     }
   }
 
+  getRadixNetwork(): number {
+    const network = this.getNetwork()
+    let networkId: number
+    switch (network) {
+      case Network.Mainnet:
+        networkId = NetworkId.Mainnet
+        break
+      case Network.Testnet:
+        networkId = NetworkId.InternalTestNet
+        break
+      case Network.Stagenet:
+        networkId = NetworkId.Stokenet
+        break
+      default:
+        networkId = NetworkId.Stokenet
+        break
+    }
+    return networkId
+  }
+
   /**
    * Get the address for a given account.
    * @deprecated Use getAddressAsync instead.
@@ -120,8 +140,7 @@ class Client extends BaseXChainClient {
    * A phrase is needed to create a wallet and to derive an address from it.
    */
   async getAddressAsync(): Promise<string> {
-    const network = this.getNetwork()
-    const networkId = network === Network.Mainnet ? NetworkId.Mainnet : NetworkId.Stokenet
+    const networkId = this.getRadixNetwork()
     const address = await LTSRadixEngineToolkit.Derive.virtualAccountAddress(this.privateKey.publicKey(), networkId)
     return address.toString()
   }
@@ -132,10 +151,10 @@ class Client extends BaseXChainClient {
    * @returns {string} The explorer URL based on the network.
    */
   getExplorerUrl(): string {
-    switch (this.getNetwork()) {
-      case Network.Mainnet:
+    switch (this.getRadixNetwork()) {
+      case NetworkId.Mainnet:
         return 'https://dashboard.radixdlt.com'
-      case Network.Testnet:
+      case NetworkId.Stokenet:
         return 'https://stokenet-dashboard.radixdlt.com'
       default:
         throw new Error('Unsupported network')
@@ -148,10 +167,10 @@ class Client extends BaseXChainClient {
    * @returns {string} The explorer URL based on the network.
    */
   getGatewayUrl(): string {
-    switch (this.getNetwork()) {
-      case Network.Mainnet:
+    switch (this.getRadixNetwork()) {
+      case NetworkId.Mainnet:
         return MAINNET_GATEWAY_URL
-      case Network.Testnet:
+      case NetworkId.Stokenet:
         return STOKENET_GATEWAY_URL
       default:
         throw new Error('Unsupported network')

@@ -60,7 +60,7 @@ describe('RadixClient Test', () => {
   it('client should be able to get the explorer url for stokenet', async () => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
     const params: XChainClientParams = {
-      network: Network.Testnet,
+      network: Network.Stagenet,
       phrase: phrase,
     }
     const stokenetRadixClient = new Client(params, KeyType.Ed25519)
