@@ -27,14 +27,23 @@ describe('RadixClient Test', () => {
   mock.onPost('https://mainnet.radixdlt.com/stream/transactions').reply(200, mockStreamTransactionsResponse)
   mock.onPost('https://mainnet.radixdlt.com/transaction/submit').reply(200, submitTransactionResponse)
 
-  beforeEach(async () => {
+  const createDefaultRadixClient = (): Client => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
     const params: XChainClientParams = {
       network: Network.Mainnet,
       phrase: phrase,
     }
-    radixClient = new Client(params, KeyType.Ed25519)
-  })
+    return new Client(params, KeyType.Ed25519)
+  }
+
+  const createSecp256k1RadixClient = (): Client => {
+    const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
+    const params: XChainClientParams = {
+      network: Network.Mainnet,
+      phrase: phrase,
+    }
+    return new Client(params, KeyType.Secp256k1)
+  }
 
   it('client should be able to user a Secp256k1 curve', async () => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
@@ -56,22 +65,26 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to get address', async () => {
+    const radixClient = createDefaultRadixClient()
     const address: string = await radixClient.getAddressAsync()
     expect(address).toBe('account_rdx12y9k726av70uhv9zwshc3c3rtcrghag2635fyuqzmt93evev8nsc44')
   })
 
   it('client should throw an Error when using getAddress', () => {
+    const radixClient = createDefaultRadixClient()
     expect(() => radixClient.getAddress()).toThrowError(
       'getAddress is synchronous and cannot retrieve addresses directly. Use getAddressAsync instead.',
     )
   })
 
   it('client should be able to get the network', async () => {
+    const radixClient = createDefaultRadixClient()
     const network = radixClient.getNetwork()
     expect(network).toBe(Network.Mainnet)
   })
 
   it('client should be able to get the explorer url', async () => {
+    const radixClient = createDefaultRadixClient()
     const explorerAddress = radixClient.getExplorerUrl()
     expect(explorerAddress).toBe('https://dashboard.radixdlt.com')
   })
@@ -88,6 +101,7 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to get an address url', async () => {
+    const radixClient = createDefaultRadixClient()
     const address: string = await radixClient.getAddressAsync()
     const explorerAddress = radixClient.getExplorerAddressUrl(address)
     expect(explorerAddress).toBe(
@@ -96,6 +110,7 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to get a transaction url', async () => {
+    const radixClient = createDefaultRadixClient()
     const explorerAddress = radixClient.getExplorerTxUrl(
       'txid_rdx1ggem7tu4nuhwm3lcc8z9jwyyp03l92pn9xfgjkdf0277hkr8fs6sudeks2',
     )
@@ -105,23 +120,27 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able validate a valid address', async () => {
+    const radixClient = createDefaultRadixClient()
     const address: string = await radixClient.getAddressAsync()
     const isValid = await radixClient.validateAddressAsync(address)
     expect(isValid).toBe(true)
   })
 
   it('client should fail to validate an invalid address', async () => {
+    const radixClient = createDefaultRadixClient()
     const isValid = await radixClient.validateAddressAsync('invalid_address')
     expect(isValid).toBe(false)
   })
 
   it('client should throw an error when using validateAddress', async () => {
+    const radixClient = createDefaultRadixClient()
     expect(() => radixClient.validateAddress()).toThrowError(
       'validateAddress is synchronous and cannot retrieve addresses directly. Use getAddressAsync instead.',
     )
   })
 
   it('client should be able to get transaction data for a given tx id', async () => {
+    const radixClient = createDefaultRadixClient()
     const transaction: Tx = await radixClient.getTransactionData(
       'txid_rdx195z9zjp43qvqk8fnzmnpazv5m7jsaepq6cnm5nnnn5p3m2573rvqamjaa8',
     )
@@ -130,6 +149,7 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to get balances for an account', async () => {
+    const radixClient = createDefaultRadixClient()
     const balances: Balance[] = await radixClient.getBalance(
       'account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w',
       [],
@@ -140,6 +160,7 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to get balances for an account with filtered assets', async () => {
+    const radixClient = createDefaultRadixClient()
     const assets: Asset[] = [
       {
         symbol: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
@@ -157,6 +178,7 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to estimate the fee for a given transaction', async () => {
+    const radixClient = createDefaultRadixClient()
     const fees: Fees = await radixClient.getFees()
     expect(fees.average.gt(0)).toBe(true)
     expect(fees.fast.gt(0)).toBe(true)
@@ -164,6 +186,7 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able to get transactions for a given account', async () => {
+    const radixClient = createDefaultRadixClient()
     const transactionsHistoryParams = {
       address: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
       offset: 72533720,
@@ -178,6 +201,7 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able prepare a transaction', async () => {
+    const radixClient = createDefaultRadixClient()
     const txParams: TxParams = {
       asset: XrdAsset,
       amount: baseAmount(1000),
@@ -190,6 +214,30 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able transfer', async () => {
+    const radixClient = createDefaultRadixClient()
+    const txParams: TxParams = {
+      asset: XrdAsset,
+      amount: baseAmount(1000),
+      recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+    }
+    const transferTransaction = await radixClient.transfer(txParams)
+    const binaryString = Buffer.from(transferTransaction, 'hex').toString('binary')
+    const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
+    const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
+    const depositAccount = Object.keys(transactionSummary.deposits)[0]
+    const depositResource = Object.keys(transactionSummary.deposits[depositAccount])[0]
+    const depositAmount: number =
+      transactionSummary.deposits[depositAccount][
+        'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd'
+      ].toNumber()
+
+    expect(depositAccount).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
+    expect(depositResource).toBe('resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd')
+    expect(depositAmount).toBe(1000)
+  })
+
+  it('client should be able transfer using a Secp256k1 key', async () => {
+    const radixClient = createSecp256k1RadixClient()
     const txParams: TxParams = {
       asset: XrdAsset,
       amount: baseAmount(1000),
@@ -212,6 +260,7 @@ describe('RadixClient Test', () => {
   })
 
   it('client should be able broadcast tx', async () => {
+    const radixClient = createDefaultRadixClient()
     const txParams: TxParams = {
       asset: XrdAsset,
       amount: baseAmount(1000),
