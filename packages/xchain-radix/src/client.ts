@@ -52,11 +52,19 @@ class Client extends BaseXChainClient {
     super(RadixChain, { network: params.network, phrase: params.phrase })
     const seed = getSeed(this.phrase)
     const hexString = seed.toString('hex').substring(0, 64)
-    if (keyType == KeyType.Ed25519) {
-      this.privateKey = new PrivateKey.Ed25519(hexString)
-    } else {
-      this.privateKey = new PrivateKey.Secp256k1(hexString)
+    if (!seed || seed.length < 32) {
+      throw new Error('Invalid seed provided')
     }
+    let privateKey: PrivateKey
+    if (keyType == KeyType.Ed25519) {
+      privateKey = new PrivateKey.Ed25519(hexString)
+    } else {
+      privateKey = new PrivateKey.Secp256k1(hexString)
+    }
+    if (!privateKey) {
+      throw new Error('Failed to generate private key')
+    }
+    this.privateKey = privateKey
     this.gatewayApiClient = GatewayApiClient.initialize({
       networkId: this.getRadixNetwork(),
       applicationName: 'xchainjs',

@@ -1,3 +1,5 @@
+import { FungibleResourcesCollection, NonFungibleResourcesCollection } from '@radixdlt/babylon-gateway-api-sdk'
+
 type LedgerState = {
   network: string
   state_version: number
@@ -8,8 +10,8 @@ type LedgerState = {
 
 type EntityDetails = {
   address: string
-  fungible_resources: any
-  non_fungible_resources: any
+  fungible_resources: FungibleResourcesCollection
+  non_fungible_resources: NonFungibleResourcesCollection
   metadata: any
   details: any
 }

@@ -13,7 +13,7 @@ import {
   mockTransactionPreviewResponse,
   submitTransactionResponse,
 } from '../__mocks__/mocks'
-import { KeyType, XrdAsset } from '../src/const'
+import { AssetXRD, KeyType, XrdAsset } from '../src/const'
 
 const axios = require('axios')
 
@@ -34,6 +34,25 @@ describe('RadixClient Test', () => {
       phrase: phrase,
     }
     radixClient = new Client(params, KeyType.Ed25519)
+  })
+
+  it('client should be able to user a Secp256k1 curve', async () => {
+    const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
+    const params: XChainClientParams = {
+      network: Network.Mainnet,
+      phrase: phrase,
+    }
+    radixClient = new Client(params, KeyType.Secp256k1)
+    expect(radixClient.getAssetInfo().asset).toBe(AssetXRD)
+  })
+
+  it('Invalid phrase is thrown', async () => {
+    const phrase = 'rural bright ball negative already grass good grant nation screen model'
+    const params: XChainClientParams = {
+      network: Network.Mainnet,
+      phrase: phrase,
+    }
+    expect(() => new Client(params, KeyType.Secp256k1)).toThrowError('Invalid phrase')
   })
 
   it('client should be able to get address', async () => {
@@ -152,7 +171,6 @@ describe('RadixClient Test', () => {
       asset: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
     }
     const txs = await (await radixClient.getTransactions(transactionsHistoryParams)).txs
-    console.log(txs)
     txs.forEach((tx) => {
       expect(tx.from).not.toBeUndefined()
       expect(tx.to).not.toBeUndefined()
