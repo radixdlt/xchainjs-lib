@@ -2,6 +2,8 @@ import {
   CommittedTransactionInfo,
   GatewayApiClient,
   GatewayStatusResponse,
+  TransactionPreviewRequest,
+  TransactionPreviewResponse,
   TransactionSubmitResponse,
 } from '@radixdlt/babylon-gateway-api-sdk'
 import {
@@ -40,13 +42,11 @@ import {
   STATE_ENTITY_DETAILS_PATH,
   STOKENET_GATEWAY_URL,
   TRANSACTION_COMMITTED_DETAILS_PATH,
-  TRANSACTION_CONSTRUCTION_PATH,
-  TRANSACTION_PREVIEW_PATH,
   TransferTransactionManifest,
   XRD_DECIMAL,
   xrdRootDerivationPaths,
 } from './const'
-import { EntityDetailsResponse, Transaction } from './types/radix'
+import { EntityDetailsResponse } from './types/radix'
 
 /**
  * Custom Radix client
@@ -68,20 +68,18 @@ export default class Client extends BaseXChainClient {
    * @returns {Fee} An estimated fee
    */
   async getFees(): Promise<Fees> {
-    const transactionPreviewUrl = `${this.getGatewayUrl()}${TRANSACTION_PREVIEW_PATH}`
-    const transactionConstructionUrl = `${this.getGatewayUrl()}${TRANSACTION_CONSTRUCTION_PATH}`
     try {
-      const constructionMetadataResponse = await axios.post(transactionConstructionUrl)
-      const transaction: Transaction = {
+      const gatewayStatusResponse: GatewayStatusResponse = await this.gatewayApiClient.status.getCurrent()
+      const transactionPreviewRequest: TransactionPreviewRequest = {
         manifest: TransferTransactionManifest,
-        start_epoch_inclusive: constructionMetadataResponse.data.ledger_state.epoch,
-        end_epoch_exclusive: constructionMetadataResponse.data.ledger_state.epoch + 10,
+        start_epoch_inclusive: gatewayStatusResponse.ledger_state.epoch,
+        end_epoch_exclusive: gatewayStatusResponse.ledger_state.epoch + 10,
         tip_percentage: 10,
         nonce: Math.floor(Math.random() * 1000000),
         signer_public_keys: [
           {
             key_type: 'EddsaEd25519',
-            key_hex: '.publicKey().hex(),',
+            key_hex: this.getRadixPrivateKey().publicKey().hex(),
           },
         ],
         flags: {
@@ -90,14 +88,27 @@ export default class Client extends BaseXChainClient {
           skip_epoch_check: true,
         },
       }
-      const response = await axios.post(transactionPreviewUrl, transaction)
-      const previewTransaction = response.data.receipt
-      let totalFees = 0
-      for (const key in previewTransaction.fee_summary) {
-        if (!isNaN(parseFloat(previewTransaction.fee_summary[key])) && key.startsWith('xrd_total_')) {
-          totalFees += parseFloat(previewTransaction.fee_summary[key])
+      const transactionPreviewResponse: TransactionPreviewResponse =
+        await this.gatewayApiClient.transaction.innerClient.transactionPreview({
+          transactionPreviewRequest: transactionPreviewRequest,
+        })
+      const receipt = transactionPreviewResponse.receipt as {
+        fee_summary: {
+          execution_cost_units_consumed: number
+          finalization_cost_units_consumed: number
+          xrd_total_execution_cost: string
+          xrd_total_finalization_cost: string
+          xrd_total_royalty_cost: string
+          xrd_total_storage_cost: string
+          xrd_total_tipping_cost: string
         }
       }
+      const totalFees =
+        parseFloat(receipt.fee_summary.xrd_total_execution_cost) +
+        parseFloat(receipt.fee_summary.xrd_total_finalization_cost) +
+        parseFloat(receipt.fee_summary.xrd_total_royalty_cost) +
+        parseFloat(receipt.fee_summary.xrd_total_storage_cost) +
+        parseFloat(receipt.fee_summary.xrd_total_tipping_cost)
       const estimatedFees: Fees = {
         type: FeeType.FlatFee,
         [FeeOption.Average]: assetToBase(assetAmount(totalFees)),
@@ -106,6 +117,7 @@ export default class Client extends BaseXChainClient {
       }
       return estimatedFees
     } catch (error) {
+      console.log(JSON.stringify(error))
       throw new Error('Failed to calculate the fees')
     }
   }
