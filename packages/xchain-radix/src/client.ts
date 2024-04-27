@@ -1,4 +1,9 @@
-import { CommittedTransactionInfo, GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk'
+import {
+  CommittedTransactionInfo,
+  GatewayApiClient,
+  GatewayStatusResponse,
+  TransactionSubmitResponse,
+} from '@radixdlt/babylon-gateway-api-sdk'
 import {
   Convert,
   LTSRadixEngineToolkit,
@@ -37,7 +42,6 @@ import {
   TRANSACTION_COMMITTED_DETAILS_PATH,
   TRANSACTION_CONSTRUCTION_PATH,
   TRANSACTION_PREVIEW_PATH,
-  TRANSACTION_SUBMIT_PATH,
   TransferTransactionManifest,
   XRD_DECIMAL,
   xrdRootDerivationPaths,
@@ -414,14 +418,13 @@ export default class Client extends BaseXChainClient {
    */
   async transfer(params: TxParams): Promise<string> {
     const networkId = this.getRadixNetwork()
-    const transactionConstructionUrl = `${this.getGatewayUrl()}${TRANSACTION_CONSTRUCTION_PATH}`
     const fromAccount = await this.getAddressAsync()
     const radixPrivateKey = this.getRadixPrivateKey()
     try {
-      const constructionMetadataResponse = await axios.post(transactionConstructionUrl)
+      const gatewayStatusResponse: GatewayStatusResponse = await this.gatewayApiClient.status.getCurrent()
       const builder = await SimpleTransactionBuilder.new({
         networkId: networkId,
-        validFromEpoch: constructionMetadataResponse.data.ledger_state.epoch,
+        validFromEpoch: gatewayStatusResponse.ledger_state.epoch,
         fromAccount: fromAccount,
         signerPublicKey: radixPrivateKey.publicKey(),
       })
@@ -446,17 +449,14 @@ export default class Client extends BaseXChainClient {
    * @returns - The response from the gateway
    */
   async broadcastTx(txHex: string): Promise<string> {
-    const url = `${this.getGatewayUrl()}${TRANSACTION_SUBMIT_PATH}`
-    const requestBody = {
-      notarized_transaction_hex: txHex,
-    }
-
-    try {
-      const response = await axios.post(url, requestBody)
-      return JSON.stringify(response.data)
-    } catch (error) {
-      throw new Error('Failed to broadcast tx')
-    }
+    const transactionSubmitResponse: TransactionSubmitResponse =
+      await this.gatewayApiClient.transaction.innerClient.transactionSubmit({
+        transactionSubmitRequest: {
+          notarized_transaction_hex: txHex,
+        },
+      })
+    console.log(transactionSubmitResponse)
+    return JSON.stringify(transactionSubmitResponse)
   }
 
   /**
