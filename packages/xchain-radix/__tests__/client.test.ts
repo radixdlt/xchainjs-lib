@@ -2,8 +2,7 @@ import { LTSRadixEngineToolkit } from '@radixdlt/radix-engine-toolkit'
 import { Fees, Tx } from '@xchainjs/xchain-client'
 import { Balance, Network, TxParams, XChainClientParams } from '@xchainjs/xchain-client/src'
 import { Client } from '@xchainjs/xchain-radix/src'
-import { Asset } from '@xchainjs/xchain-util'
-import { baseAmount } from '@xchainjs/xchain-util'
+import { Asset, baseAmount } from '@xchainjs/xchain-util'
 import MockAdapter from 'axios-mock-adapter'
 import {
   mockCommittedDetailsResponse,
@@ -13,7 +12,7 @@ import {
   mockTransactionPreviewResponse,
   submitTransactionResponse,
 } from '../__mocks__/mocks'
-import { AssetXRD, KeyType, XrdAsset } from '../src/const'
+import { AssetXRD, XrdAsset } from '../src/const'
 
 const axios = require('axios')
 
@@ -33,16 +32,7 @@ describe('RadixClient Test', () => {
       network: Network.Mainnet,
       phrase: phrase,
     }
-    return new Client(params, KeyType.Ed25519)
-  }
-
-  const createSecp256k1RadixClient = (): Client => {
-    const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
-    const params: XChainClientParams = {
-      network: Network.Mainnet,
-      phrase: phrase,
-    }
-    return new Client(params, KeyType.Secp256k1)
+    return new Client(params)
   }
 
   it('client should be able to user a Secp256k1 curve', async () => {
@@ -51,7 +41,7 @@ describe('RadixClient Test', () => {
       network: Network.Mainnet,
       phrase: phrase,
     }
-    radixClient = new Client(params, KeyType.Secp256k1)
+    radixClient = new Client(params)
     expect(radixClient.getAssetInfo().asset).toBe(AssetXRD)
   })
 
@@ -61,13 +51,13 @@ describe('RadixClient Test', () => {
       network: Network.Mainnet,
       phrase: phrase,
     }
-    expect(() => new Client(params, KeyType.Secp256k1)).toThrowError('Invalid phrase')
+    expect(() => new Client(params)).toThrowError('Invalid phrase')
   })
 
   it('client should be able to get address', async () => {
     const radixClient = createDefaultRadixClient()
     const address: string = await radixClient.getAddressAsync()
-    expect(address).toBe('account_rdx12y9k726av70uhv9zwshc3c3rtcrghag2635fyuqzmt93evev8nsc44')
+    expect(address).toBe('account_rdx12x2k9rnshx46pwa9gu527dqt0tk3l064ynvcqeatgln4807902l4nn')
   })
 
   it('client should throw an Error when using getAddress', () => {
@@ -95,7 +85,7 @@ describe('RadixClient Test', () => {
       network: Network.Stagenet,
       phrase: phrase,
     }
-    const stokenetRadixClient = new Client(params, KeyType.Ed25519)
+    const stokenetRadixClient = new Client(params)
     const explorerAddress = stokenetRadixClient.getExplorerUrl()
     expect(explorerAddress).toBe('https://stokenet-dashboard.radixdlt.com')
   })
@@ -105,7 +95,7 @@ describe('RadixClient Test', () => {
     const address: string = await radixClient.getAddressAsync()
     const explorerAddress = radixClient.getExplorerAddressUrl(address)
     expect(explorerAddress).toBe(
-      'https://dashboard.radixdlt.com/account/account_rdx12y9k726av70uhv9zwshc3c3rtcrghag2635fyuqzmt93evev8nsc44',
+      'https://dashboard.radixdlt.com/account/account_rdx12x2k9rnshx46pwa9gu527dqt0tk3l064ynvcqeatgln4807902l4nn',
     )
   })
 
@@ -215,29 +205,6 @@ describe('RadixClient Test', () => {
 
   it('client should be able transfer', async () => {
     const radixClient = createDefaultRadixClient()
-    const txParams: TxParams = {
-      asset: XrdAsset,
-      amount: baseAmount(1000),
-      recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
-    }
-    const transferTransaction = await radixClient.transfer(txParams)
-    const binaryString = Buffer.from(transferTransaction, 'hex').toString('binary')
-    const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
-    const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
-    const depositAccount = Object.keys(transactionSummary.deposits)[0]
-    const depositResource = Object.keys(transactionSummary.deposits[depositAccount])[0]
-    const depositAmount: number =
-      transactionSummary.deposits[depositAccount][
-        'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd'
-      ].toNumber()
-
-    expect(depositAccount).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
-    expect(depositResource).toBe('resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd')
-    expect(depositAmount).toBe(1000)
-  })
-
-  it('client should be able transfer using a Secp256k1 key', async () => {
-    const radixClient = createSecp256k1RadixClient()
     const txParams: TxParams = {
       asset: XrdAsset,
       amount: baseAmount(1000),

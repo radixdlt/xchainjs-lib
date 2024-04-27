@@ -49,6 +49,7 @@
     "@radixdlt/babylon-gateway-api-sdk": "^1.4.1",
     "@radixdlt/radix-engine-toolkit": "^1.0.3",
     "axios-mock-adapter": "^1.22.0",
+    "bip32": "^4.0.0",
     "hex-to-array-buffer": "^2.0.0"
   }
 }

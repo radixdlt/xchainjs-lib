@@ -1,5 +1,6 @@
 import { CommittedTransactionInfo, GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk'
 import {
+  Convert,
   LTSRadixEngineToolkit,
   NetworkId,
   PrivateKey,
@@ -25,9 +26,10 @@ import {
 import { getSeed } from '@xchainjs/xchain-crypto/lib'
 import { Address, Asset, assetAmount, assetToBase, baseAmount } from '@xchainjs/xchain-util'
 import axios from 'axios'
+import BIP32Factory, { BIP32Interface } from 'bip32'
+import * as ecc from 'tiny-secp256k1'
 import {
   AssetXRD,
-  KeyType,
   MAINNET_GATEWAY_URL,
   RadixChain,
   STATE_ENTITY_DETAILS_PATH,
@@ -38,6 +40,7 @@ import {
   TRANSACTION_SUBMIT_PATH,
   TransferTransactionManifest,
   XRD_DECIMAL,
+  xrdRootDerivationPaths,
 } from './const'
 import { EntityDetailsResponse, Transaction } from './types/radix'
 
@@ -45,26 +48,10 @@ import { EntityDetailsResponse, Transaction } from './types/radix'
  * Custom Radix client
  */
 
-class Client extends BaseXChainClient {
-  privateKey: PrivateKey
+export default class Client extends BaseXChainClient {
   gatewayApiClient: GatewayApiClient
-  constructor(params: XChainClientParams, keyType: KeyType) {
-    super(RadixChain, { network: params.network, phrase: params.phrase })
-    const seed = getSeed(this.phrase)
-    const hexString = seed.toString('hex').substring(0, 64)
-    if (!seed || seed.length < 32) {
-      throw new Error('Invalid seed provided')
-    }
-    let privateKey: PrivateKey
-    if (keyType == KeyType.Ed25519) {
-      privateKey = new PrivateKey.Ed25519(hexString)
-    } else {
-      privateKey = new PrivateKey.Secp256k1(hexString)
-    }
-    if (!privateKey) {
-      throw new Error('Failed to generate private key')
-    }
-    this.privateKey = privateKey
+  constructor(params: XChainClientParams) {
+    super(RadixChain, { network: params.network, phrase: params.phrase, rootDerivationPaths: xrdRootDerivationPaths })
     this.gatewayApiClient = GatewayApiClient.initialize({
       networkId: this.getRadixNetwork(),
       applicationName: 'xchainjs',
@@ -90,7 +77,7 @@ class Client extends BaseXChainClient {
         signer_public_keys: [
           {
             key_type: 'EddsaEd25519',
-            key_hex: this.privateKey.publicKey().hex(),
+            key_hex: '.publicKey().hex(),',
           },
         ],
         flags: {
@@ -139,6 +126,22 @@ class Client extends BaseXChainClient {
     return networkId
   }
 
+  getPrivateKey(): Buffer {
+    const seed = getSeed(this.phrase)
+    const bip32 = BIP32Factory(ecc)
+    const node: BIP32Interface = bip32.fromSeed(seed)
+    if (!this.rootDerivationPaths) throw new Error('no root derivation paths defined')
+    const child: BIP32Interface = node.derivePath(this.rootDerivationPaths[this.getNetwork()])
+    if (!child.privateKey) throw new Error('child does not have a privateKey')
+    return child.privateKey
+  }
+
+  getRadixPrivateKey(): PrivateKey {
+    const privateKey = this.getPrivateKey()
+    const privateKeyBytes = Uint8Array.from(privateKey)
+    return new PrivateKey.Ed25519(privateKeyBytes)
+  }
+
   /**
    * Get the address for a given account.
    * @deprecated Use getAddressAsync instead.
@@ -154,7 +157,8 @@ class Client extends BaseXChainClient {
    */
   async getAddressAsync(): Promise<string> {
     const networkId = this.getRadixNetwork()
-    const address = await LTSRadixEngineToolkit.Derive.virtualAccountAddress(this.privateKey.publicKey(), networkId)
+    const radixPrivateKey = this.getRadixPrivateKey()
+    const address = await LTSRadixEngineToolkit.Derive.virtualAccountAddress(radixPrivateKey.publicKey(), networkId)
     return address.toString()
   }
 
@@ -409,27 +413,29 @@ class Client extends BaseXChainClient {
    * @returns A signed transaction hex
    */
   async transfer(params: TxParams): Promise<string> {
-    const networkId = this.network === Network.Mainnet ? NetworkId.Mainnet : NetworkId.Stokenet
+    const networkId = this.getRadixNetwork()
     const transactionConstructionUrl = `${this.getGatewayUrl()}${TRANSACTION_CONSTRUCTION_PATH}`
     const fromAccount = await this.getAddressAsync()
+    const radixPrivateKey = this.getRadixPrivateKey()
     try {
       const constructionMetadataResponse = await axios.post(transactionConstructionUrl)
       const builder = await SimpleTransactionBuilder.new({
         networkId: networkId,
         validFromEpoch: constructionMetadataResponse.data.ledger_state.epoch,
         fromAccount: fromAccount,
-        signerPublicKey: this.privateKey.publicKey(),
+        signerPublicKey: radixPrivateKey.publicKey(),
       })
-
-      const transaction = await builder
+      const compiledTransaction = await builder
         .transferFungible({
           toAccount: JSON.parse((await this.prepareTx(params)).rawUnsignedTx)['toAccount'],
           resourceAddress: JSON.parse((await this.prepareTx(params)).rawUnsignedTx)['resourceAddress'],
           amount: JSON.parse((await this.prepareTx(params)).rawUnsignedTx)['amount'],
         })
         .compileIntent()
-        .compileNotarizedAsync(async (hash) => this.privateKey.signToSignature(hash))
-      return transaction.toHex()
+        .compileNotarizedAsync(async (hash) => radixPrivateKey.signToSignature(hash))
+
+      const compiledTransactionHex = Convert.Uint8Array.toHexString(compiledTransaction.toByteArray())
+      return compiledTransactionHex
     } catch (error) {
       throw new Error('Failed to transfer')
     }

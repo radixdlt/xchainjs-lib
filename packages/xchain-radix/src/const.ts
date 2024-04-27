@@ -1,3 +1,4 @@
+import { Network, RootDerivationPaths } from '@xchainjs/xchain-client/lib'
 import { Asset } from '@xchainjs/xchain-util/lib'
 
 /**
@@ -58,4 +59,10 @@ export const XrdAsset: Asset = {
   ticker: 'XRD',
   synth: false,
   chain: RadixChain,
+}
+
+export const xrdRootDerivationPaths: RootDerivationPaths = {
+  [Network.Mainnet]: "m/44'/1022'/1'/525'/1460'/0'",
+  [Network.Stagenet]: "m/44'/1022'/2'/525'/1460'/0'",
+  [Network.Testnet]: "m/44'/1022'/2'/525'/1460'/0'",
 }
