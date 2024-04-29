@@ -1,4 +1,6 @@
-export const mockEntityDetailsResponse = {
+import { StateEntityDetailsResponse, TransactionCommittedDetailsResponse } from '@radixdlt/babylon-gateway-api-sdk'
+
+export const mockEntityDetailsResponse: StateEntityDetailsResponse = {
   ledger_state: {
     network: 'mainnet',
     state_version: 73418426,
@@ -455,7 +457,7 @@ export const mockEntityDetailsResponse = {
   ],
 }
 
-export const mockCommittedDetailsResponse = {
+export const mockCommittedDetailsResponse: TransactionCommittedDetailsResponse = {
   ledger_state: {
     network: 'mainnet',
     state_version: 73378251,
@@ -472,7 +474,7 @@ export const mockCommittedDetailsResponse = {
     payload_hash: 'notarizedtransaction_rdx1h92j298aw35ty5ph65qj9kwswva9njvsq8796u93pgwsy35edzzsqk538t',
     intent_hash: 'txid_rdx195z9zjp43qvqk8fnzmnpazv5m7jsaepq6cnm5nnnn5p3m2573rvqamjaa8',
     fee_paid: '0.24701070443',
-    confirmed_at: '2024-04-18T19:05:01.117Z',
+    confirmed_at: new Date('2024-04-18T19:05:01.117Z'),
     raw_hex:
       '4d2202022104210707010a88130000000000000a8a13000000000000093695d9e42201012007205c180935949806e6c7532e63d8cc75be10cb1e56a40e23d193fc4a9e8ee9eba6010108000020220441038000d148b7923acafac9ccc1ab794cda7e000ebbf3f0f51e0d2460a19c7424140c086c6f636b5f6665652101850000f444829163450000000000000000000000000000000041038000d148b7923acafac9ccc1ab794cda7e000ebbf3f0f51e0d2460a19c7424140c087769746864726177210280005da66318c6318c61f5a61b4c6318c6318cf794aa8d295f14e6318c6318c68500c025b0023ae64001000000000000000000000000000000000280005da66318c6318c61f5a61b4c6318c6318cf794aa8d295f14e6318c6318c68500c025b0023ae6400100000000000000000000000000000041038000d1abe47040ad7fb0fd0f25933567eb72e8e7649f0f38182e069a767fa19d0c147472795f6465706f7369745f6f725f61626f727421028100000000220000202000220000202200',
     receipt: {

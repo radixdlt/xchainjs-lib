@@ -2,12 +2,15 @@ import { GatewayStatusResponse } from '@radixdlt/babylon-gateway-api-sdk'
 import { Balance, Fees, Network, Tx, TxParams, XChainClientParams } from '@xchainjs/xchain-client/src'
 import { Client } from '@xchainjs/xchain-radix/src'
 import { Asset, baseAmount } from '@xchainjs/xchain-util'
-// eslint-disable-next-line ordered-imports/ordered-imports
+import {
+  mockCommittedDetailsResponse,
+  mockEntityDetailsResponse,
+  mockStreamTransactionsResponse,
+  mockTransactionPreviewResponse,
+} from '../__mocks__/mocks'
 import { AssetXRD, XrdAsset } from '../src/const'
 
 describe('RadixClient Test', () => {
-  let radixClient: Client
-
   const createDefaultRadixClient = (): Client => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
     const params: XChainClientParams = {
@@ -18,12 +21,7 @@ describe('RadixClient Test', () => {
   }
 
   it('client should be able to user a Secp256k1 curve', async () => {
-    const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
-    const params: XChainClientParams = {
-      network: Network.Mainnet,
-      phrase: phrase,
-    }
-    radixClient = new Client(params)
+    const radixClient = createDefaultRadixClient()
     expect(radixClient.getAssetInfo().asset).toBe(AssetXRD)
   })
 
@@ -113,15 +111,20 @@ describe('RadixClient Test', () => {
 
   it('client should be able to get transaction data for a given tx id', async () => {
     const radixClient = createDefaultRadixClient()
+    const transactionCommittedDetailsMock = jest.fn().mockResolvedValue(mockCommittedDetailsResponse)
+    radixClient.gatewayApiClient.transaction.innerClient.transactionCommittedDetails = transactionCommittedDetailsMock
+
     const transaction: Tx = await radixClient.getTransactionData(
       'txid_rdx195z9zjp43qvqk8fnzmnpazv5m7jsaepq6cnm5nnnn5p3m2573rvqamjaa8',
     )
-    expect(transaction.from[0].from).toBe('account_rdx16xnjj8vzw7h30ct6n4rad43tspxrk9spdffq5djfesell6taxd8z92')
+    expect(transaction.from[0].from).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
     expect(transaction.to[0].to).toBe('account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w')
   })
 
   it('client should be able to get balances for an account', async () => {
     const radixClient = createDefaultRadixClient()
+    const entityDetailsResponseMock = jest.fn().mockResolvedValue(mockEntityDetailsResponse)
+    radixClient.gatewayApiClient.state.innerClient.stateEntityDetails = entityDetailsResponseMock
     const balances: Balance[] = await radixClient.getBalance(
       'account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w',
       [],
@@ -133,6 +136,8 @@ describe('RadixClient Test', () => {
 
   it('client should be able to get balances for an account with filtered assets', async () => {
     const radixClient = createDefaultRadixClient()
+    const entityDetailsResponseMock = jest.fn().mockResolvedValue(mockEntityDetailsResponse)
+    radixClient.gatewayApiClient.state.innerClient.stateEntityDetails = entityDetailsResponseMock
     const assets: Asset[] = [
       {
         symbol: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
@@ -151,6 +156,13 @@ describe('RadixClient Test', () => {
 
   it('client should be able to estimate the fee for a given transaction', async () => {
     const radixClient = createDefaultRadixClient()
+
+    const getCurrentMock = jest.fn().mockResolvedValue({ ledger_state: { epoch: 123 } } as GatewayStatusResponse)
+    radixClient.gatewayApiClient.status.getCurrent = getCurrentMock
+
+    const transactionPreviewResponseMock = jest.fn().mockResolvedValue(mockTransactionPreviewResponse)
+    radixClient.gatewayApiClient.transaction.innerClient.transactionPreview = transactionPreviewResponseMock
+
     const fees: Fees = await radixClient.getFees()
     expect(fees.average.gt(0)).toBe(true)
     expect(fees.fast.gt(0)).toBe(true)
@@ -159,6 +171,10 @@ describe('RadixClient Test', () => {
 
   it('client should be able to get transactions for a given account', async () => {
     const radixClient = createDefaultRadixClient()
+
+    const streamTransactionsResponseMock = jest.fn().mockResolvedValue(mockStreamTransactionsResponse)
+    radixClient.gatewayApiClient.stream.innerClient.streamTransactions = streamTransactionsResponseMock
+
     const transactionsHistoryParams = {
       address: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
       offset: 72533720,
