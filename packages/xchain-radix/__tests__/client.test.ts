@@ -1,30 +1,12 @@
-import { LTSRadixEngineToolkit } from '@radixdlt/radix-engine-toolkit'
-import { Fees, Tx } from '@xchainjs/xchain-client'
-import { Balance, Network, TxParams, XChainClientParams } from '@xchainjs/xchain-client/src'
+import { GatewayStatusResponse } from '@radixdlt/babylon-gateway-api-sdk'
+import { Balance, Fees, Network, Tx, TxParams, XChainClientParams } from '@xchainjs/xchain-client/src'
 import { Client } from '@xchainjs/xchain-radix/src'
 import { Asset, baseAmount } from '@xchainjs/xchain-util'
-import MockAdapter from 'axios-mock-adapter'
-import {
-  mockCommittedDetailsResponse,
-  mockConstructionMetadataResponse,
-  mockEntityDetailsResponse,
-  mockStreamTransactionsResponse,
-  mockTransactionPreviewResponse,
-  submitTransactionResponse,
-} from '../__mocks__/mocks'
+// eslint-disable-next-line ordered-imports/ordered-imports
 import { AssetXRD, XrdAsset } from '../src/const'
-
-const axios = require('axios')
 
 describe('RadixClient Test', () => {
   let radixClient: Client
-  const mock = new MockAdapter(axios)
-  mock.onPost('https://mainnet.radixdlt.com/transaction/committed-details').reply(200, mockCommittedDetailsResponse)
-  mock.onPost('https://mainnet.radixdlt.com/state/entity/details').reply(200, mockEntityDetailsResponse)
-  mock.onPost('https://mainnet.radixdlt.com/transaction/construction').reply(200, mockConstructionMetadataResponse)
-  mock.onPost('https://mainnet.radixdlt.com/transaction/preview').reply(200, mockTransactionPreviewResponse)
-  mock.onPost('https://mainnet.radixdlt.com/stream/transactions').reply(200, mockStreamTransactionsResponse)
-  mock.onPost('https://mainnet.radixdlt.com/transaction/submit').reply(200, submitTransactionResponse)
 
   const createDefaultRadixClient = (): Client => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
@@ -205,37 +187,26 @@ describe('RadixClient Test', () => {
 
   it('client should be able transfer', async () => {
     const radixClient = createDefaultRadixClient()
+    const broadcastTxMock = jest.fn()
+    radixClient.broadcastTx = broadcastTxMock
+    const getCurrentMock = jest.fn().mockResolvedValue({ ledger_state: { epoch: 123 } } as GatewayStatusResponse)
+    radixClient.gatewayApiClient.status.getCurrent = getCurrentMock
     const txParams: TxParams = {
       asset: XrdAsset,
       amount: baseAmount(1000),
       recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
     }
     const transferTransaction = await radixClient.transfer(txParams)
-    const binaryString = Buffer.from(transferTransaction, 'hex').toString('binary')
-    const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
-    const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
-    const depositAccount = Object.keys(transactionSummary.deposits)[0]
-    const depositResource = Object.keys(transactionSummary.deposits[depositAccount])[0]
-    const depositAmount: number =
-      transactionSummary.deposits[depositAccount][
-        'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd'
-      ].toNumber()
-
-    expect(depositAccount).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
-    expect(depositResource).toBe('resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd')
-    expect(depositAmount).toBe(1000)
+    expect(transferTransaction.startsWith('txid_rdx')).toBe(true)
+    expect(broadcastTxMock).toBeCalledTimes(1)
   })
 
   it('client should be able broadcast tx', async () => {
     const radixClient = createDefaultRadixClient()
-    const txParams: TxParams = {
-      asset: XrdAsset,
-      amount: baseAmount(1000),
-      recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
-    }
-    const transferTransactionHex = await radixClient.transfer(txParams)
-    const broadcastResponse = await radixClient.broadcastTx(transferTransactionHex)
-    const parsedResponse = JSON.parse(broadcastResponse)
-    expect(parsedResponse['duplicate']).toBe(false)
+    const transactionSubmitMock = jest.fn()
+    radixClient.gatewayApiClient.transaction.innerClient.transactionSubmit = transactionSubmitMock
+    const transactionHex = ''
+    await radixClient.broadcastTx(transactionHex)
+    expect(radixClient.gatewayApiClient.transaction.innerClient.transactionSubmit).toBeCalledTimes(1)
   })
 })

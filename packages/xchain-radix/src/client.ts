@@ -54,7 +54,7 @@ import {
  */
 
 export default class Client extends BaseXChainClient {
-  private gatewayApiClient: GatewayApiClient
+  gatewayApiClient: GatewayApiClient
   constructor(params: XChainClientParams) {
     super(RadixChain, { network: params.network, phrase: params.phrase, rootDerivationPaths: xrdRootDerivationPaths })
     this.gatewayApiClient = GatewayApiClient.initialize({
@@ -450,17 +450,19 @@ export default class Client extends BaseXChainClient {
         fromAccount: fromAccount,
         signerPublicKey: radixPrivateKey.publicKey(),
       })
+      const preparedTransaction = await this.prepareTx(params)
       const compiledTransaction = await builder
         .transferFungible({
-          toAccount: JSON.parse((await this.prepareTx(params)).rawUnsignedTx)['toAccount'],
-          resourceAddress: JSON.parse((await this.prepareTx(params)).rawUnsignedTx)['resourceAddress'],
-          amount: JSON.parse((await this.prepareTx(params)).rawUnsignedTx)['amount'],
+          toAccount: JSON.parse(preparedTransaction.rawUnsignedTx)['toAccount'],
+          resourceAddress: JSON.parse(preparedTransaction.rawUnsignedTx)['resourceAddress'],
+          amount: JSON.parse(preparedTransaction.rawUnsignedTx)['amount'],
         })
         .compileIntent()
         .compileNotarizedAsync(async (hash) => radixPrivateKey.signToSignature(hash))
 
       const compiledTransactionHex = Convert.Uint8Array.toHexString(compiledTransaction.toByteArray())
-      return compiledTransactionHex
+      await this.broadcastTx(compiledTransactionHex)
+      return compiledTransaction.intentHash.id
     } catch (error) {
       throw new Error('Failed to transfer')
     }
@@ -477,7 +479,6 @@ export default class Client extends BaseXChainClient {
           notarized_transaction_hex: txHex,
         },
       })
-    console.log(transactionSubmitResponse)
     return JSON.stringify(transactionSubmitResponse)
   }
 
