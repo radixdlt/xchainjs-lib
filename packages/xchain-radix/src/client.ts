@@ -2,6 +2,10 @@ import {
   CommittedTransactionInfo,
   GatewayApiClient,
   GatewayStatusResponse,
+  StateEntityDetailsRequest,
+  StateEntityDetailsResponse,
+  TransactionCommittedDetailsRequest,
+  TransactionCommittedDetailsResponse,
   TransactionPreviewRequest,
   TransactionPreviewResponse,
   TransactionSubmitResponse,
@@ -32,28 +36,25 @@ import {
 } from '@xchainjs/xchain-client'
 import { getSeed } from '@xchainjs/xchain-crypto/lib'
 import { Address, Asset, assetAmount, assetToBase, baseAmount } from '@xchainjs/xchain-util'
-import axios from 'axios'
 import BIP32Factory, { BIP32Interface } from 'bip32'
 import * as ecc from 'tiny-secp256k1'
+// eslint-disable-next-line ordered-imports/ordered-imports
 import {
   AssetXRD,
   MAINNET_GATEWAY_URL,
   RadixChain,
-  STATE_ENTITY_DETAILS_PATH,
   STOKENET_GATEWAY_URL,
-  TRANSACTION_COMMITTED_DETAILS_PATH,
   TransferTransactionManifest,
   XRD_DECIMAL,
   xrdRootDerivationPaths,
 } from './const'
-import { EntityDetailsResponse } from './types/radix'
 
 /**
  * Custom Radix client
  */
 
 export default class Client extends BaseXChainClient {
-  gatewayApiClient: GatewayApiClient
+  private gatewayApiClient: GatewayApiClient
   constructor(params: XChainClientParams) {
     super(RadixChain, { network: params.network, phrase: params.phrase, rootDerivationPaths: xrdRootDerivationPaths })
     this.gatewayApiClient = GatewayApiClient.initialize({
@@ -61,6 +62,7 @@ export default class Client extends BaseXChainClient {
       applicationName: 'xchainjs',
     })
   }
+
   /**
    * Get an estimated fee for a test transaction that involves sending
    * XRD from one account to another
@@ -117,7 +119,6 @@ export default class Client extends BaseXChainClient {
       }
       return estimatedFees
     } catch (error) {
-      console.log(JSON.stringify(error))
       throw new Error('Failed to calculate the fees')
     }
   }
@@ -265,16 +266,16 @@ export default class Client extends BaseXChainClient {
    * @returns {Promise<Balance[]>} An array containing the balance of the address.
    */
   async getBalance(address: Address, assets: Asset[]): Promise<Balance[]> {
-    const url = `${this.getGatewayUrl()}${STATE_ENTITY_DETAILS_PATH}`
-    const requestBody = {
+    const stateEntityDetailsRequest: StateEntityDetailsRequest = {
       addresses: [address],
       aggregation_level: 'Global',
     }
-
     try {
-      const response = await axios.post(url, requestBody)
-      const entityDetails: EntityDetailsResponse = response.data
-      return entityDetails.items.flatMap((item: any) => {
+      const stateEntityDetailsResponse: StateEntityDetailsResponse =
+        await this.gatewayApiClient.state.innerClient.stateEntityDetails({
+          stateEntityDetailsRequest: stateEntityDetailsRequest,
+        })
+      return stateEntityDetailsResponse.items.flatMap((item: any) => {
         const balances: Balance[] = []
         // Check for fungible_resources
         if (item.fungible_resources && item.fungible_resources.items) {
@@ -361,23 +362,32 @@ export default class Client extends BaseXChainClient {
    * @returns {Tx} The transaction details of the given transaction id.
    */
   async getTransactionData(txId: string): Promise<Tx> {
-    const url = `${this.getGatewayUrl()}${TRANSACTION_COMMITTED_DETAILS_PATH}`
-    const requestBody = {
-      intent_hash: txId,
-      opt_ins: {
-        manifest_instructions: true,
-        raw_hex: true,
-      },
-    }
-
     try {
-      const response = await axios.post(url, requestBody)
-      const transaction: Tx = await this.convertTransactionFromHex(
-        response.data.transaction.raw_hex,
-        response.data.transaction.confirmed_at,
-        response.data.transaction.intent_hash,
-      )
-      return transaction
+      const transactionCommittedDetailsRequest: TransactionCommittedDetailsRequest = {
+        intent_hash: txId,
+        opt_ins: {
+          raw_hex: true,
+        },
+      }
+      const transactionCommittedDetailsResponse: TransactionCommittedDetailsResponse =
+        await this.gatewayApiClient.transaction.innerClient.transactionCommittedDetails({
+          transactionCommittedDetailsRequest: transactionCommittedDetailsRequest,
+        })
+      if (
+        transactionCommittedDetailsResponse.transaction.raw_hex !== undefined &&
+        transactionCommittedDetailsResponse.transaction.confirmed_at !== null &&
+        transactionCommittedDetailsResponse.transaction.confirmed_at !== undefined &&
+        transactionCommittedDetailsResponse.transaction.intent_hash !== undefined
+      ) {
+        const transaction: Tx = await this.convertTransactionFromHex(
+          transactionCommittedDetailsResponse.transaction.raw_hex,
+          transactionCommittedDetailsResponse.transaction.intent_hash,
+          transactionCommittedDetailsResponse.transaction.confirmed_at,
+        )
+        return transaction
+      } else {
+        throw new Error('Incomplete transaction data received')
+      }
     } catch (error) {
       throw new Error('Failed to fetch transaction data')
     }

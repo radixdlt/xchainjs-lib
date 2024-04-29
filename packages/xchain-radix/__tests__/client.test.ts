@@ -134,7 +134,7 @@ describe('RadixClient Test', () => {
     const transaction: Tx = await radixClient.getTransactionData(
       'txid_rdx195z9zjp43qvqk8fnzmnpazv5m7jsaepq6cnm5nnnn5p3m2573rvqamjaa8',
     )
-    expect(transaction.from[0].from).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
+    expect(transaction.from[0].from).toBe('account_rdx16xnjj8vzw7h30ct6n4rad43tspxrk9spdffq5djfesell6taxd8z92')
     expect(transaction.to[0].to).toBe('account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w')
   })
 
