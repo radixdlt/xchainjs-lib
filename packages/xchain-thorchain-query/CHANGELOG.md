@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.10
+
+### Patch Changes
+
+- b93add9: Dependecies as external at building process
+- Updated dependencies [b93add9]
+  - @xchainjs/xchain-midgard-query@0.1.15
+  - @xchainjs/xchain-thornode@0.3.13
+  - @xchainjs/xchain-client@0.16.4
+  - @xchainjs/xchain-util@0.13.4
+
+## 0.7.9
+
+### Patch Changes
+
+- Updated dependencies [448c29f]
+  - @xchainjs/xchain-client@0.16.3
+  - @xchainjs/xchain-midgard-query@0.1.14
+
 ## 0.7.8
 
 ### Patch Changes

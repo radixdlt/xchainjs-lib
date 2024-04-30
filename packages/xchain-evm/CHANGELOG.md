@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.1
+
+### Patch Changes
+
+- b93add9: Dependecies as external at building process
+- Updated dependencies [b93add9]
+  - @xchainjs/xchain-client@0.16.4
+  - @xchainjs/xchain-util@0.13.4
+
+## 0.5.0
+
+### Minor Changes
+
+- f432295: Ledger client
+
+### Patch Changes
+
+- 448c29f: New optional parameter `isMemoEncoded` for `transfer`, `prepareTx` and `estimateGasLimit` methods. If it is set to true, memo will not be encoded by the funcions. False by default
+- f432295: `approve` return type updated from `ethers.providers.TransactionResponse` to `string`
+- Updated dependencies [448c29f]
+  - @xchainjs/xchain-client@0.16.3
+
 ## 0.4.5
 
 ### Patch Changes

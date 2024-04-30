@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.6
+
+### Patch Changes
+
+- b93add9: Dependecies as external at building process
+- Updated dependencies [b93add9]
+  - @xchainjs/xchain-cosmos-sdk@0.2.6
+  - @xchainjs/xchain-client@0.16.4
+  - @xchainjs/xchain-util@0.13.4
+
+## 1.0.5
+
+### Patch Changes
+
+- Updated dependencies [448c29f]
+  - @xchainjs/xchain-client@0.16.3
+  - @xchainjs/xchain-cosmos-sdk@0.2.5
+
 ## 1.0.4
 
 ### Patch Changes

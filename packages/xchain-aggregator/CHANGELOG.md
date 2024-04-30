@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.1.11
+
+### Patch Changes
+
+- 7544bbe: Preferbuiltins and browser for resolve plugin
+
+## 0.1.10
+
+### Patch Changes
+
+- b93add9: Dependecies as external at building process
+- Updated dependencies [b93add9]
+  - @xchainjs/xchain-mayachain-query@0.1.12
+  - @xchainjs/xchain-thorchain-query@0.7.10
+  - @xchainjs/xchain-mayachain-amm@2.0.1
+  - @xchainjs/xchain-thorchain-amm@1.1.5
+  - @xchainjs/xchain-mayachain@1.0.3
+  - @xchainjs/xchain-thorchain@1.0.6
+  - @xchainjs/xchain-client@0.16.4
+  - @xchainjs/xchain-wallet@0.1.10
+  - @xchainjs/xchain-util@0.13.4
+
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [448c29f]
+- Updated dependencies [448c29f]
+- Updated dependencies [448c29f]
+- Updated dependencies [448c29f]
+- Updated dependencies [448c29f]
+- Updated dependencies [f432295]
+  - @xchainjs/xchain-mayachain-amm@2.0.0
+  - @xchainjs/xchain-thorchain-amm@1.1.4
+  - @xchainjs/xchain-wallet@0.1.9
+  - @xchainjs/xchain-client@0.16.3
+  - @xchainjs/xchain-mayachain@1.0.2
+  - @xchainjs/xchain-mayachain-query@0.1.11
+  - @xchainjs/xchain-thorchain@1.0.5
+  - @xchainjs/xchain-thorchain-query@0.7.9
+
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [ecacc18]
+- Updated dependencies [e0d9669]
+  - @xchainjs/xchain-mayachain-query@0.1.10
+  - @xchainjs/xchain-mayachain-amm@1.1.2
+
 ## 0.1.7
 
 ### Patch Changes

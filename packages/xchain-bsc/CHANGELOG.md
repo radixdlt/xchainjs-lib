@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.5.1
+
+### Patch Changes
+
+- b93add9: Dependecies as external at building process
+- Updated dependencies [b93add9]
+  - @xchainjs/xchain-evm-providers@0.1.9
+  - @xchainjs/xchain-client@0.16.4
+  - @xchainjs/xchain-util@0.13.4
+  - @xchainjs/xchain-evm@0.5.1
+
+## 0.5.0
+
+### Minor Changes
+
+- f432295: `signer` parameter removed from `transfer` function for the keystore client
+- f432295: Ledger client
+- f432295: `signer` parameter removed from `approve` function for the keystore client
+
+### Patch Changes
+
+- Updated dependencies [f432295]
+- Updated dependencies [448c29f]
+- Updated dependencies [448c29f]
+- Updated dependencies [f432295]
+  - @xchainjs/xchain-evm@0.5.0
+  - @xchainjs/xchain-client@0.16.3
+  - @xchainjs/xchain-evm-providers@0.1.8
+
 ## 0.4.7
 
 ### Patch Changes
