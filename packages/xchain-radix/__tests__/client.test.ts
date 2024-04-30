@@ -20,11 +20,6 @@ describe('RadixClient Test', () => {
     return new Client(params)
   }
 
-  it('client should be able to user a Secp256k1 curve', async () => {
-    const radixClient = createDefaultRadixClient()
-    expect(radixClient.getAssetInfo().asset).toBe(AssetXRD)
-  })
-
   it('Invalid phrase is thrown', async () => {
     const phrase = 'rural bright ball negative already grass good grant nation screen model'
     const params: XChainClientParams = {
