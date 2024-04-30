@@ -8,7 +8,7 @@ import {
   mockStreamTransactionsResponse,
   mockTransactionPreviewResponse,
 } from '../__mocks__/mocks'
-import { AssetXRD, XrdAsset } from '../src/const'
+import { XrdAsset } from '../src/const'
 
 describe('RadixClient Test', () => {
   const createDefaultRadixClient = (): Client => {
