@@ -28,6 +28,43 @@ const params: XChainClientParams = {
 const client = new Client(params)
 ```
 
+### Creating a transaction
+```
+import { Client, XrdAsset } from '@xchainjs/xchain-radix'
 
+const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
+const params: XChainClientParams = {
+    network: Network.Mainnet,
+    phrase: phrase,
+}
+const radixClient = new Client(params)
+
+const txParams: TxParams = {
+    asset: XrdAsset,
+    amount: baseAmount(1000),
+    recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+}
+const transferTransaction = await radixClient.transfer(txParams)
+console.log(transferTransaction)
+```
+
+### Getting a transaction data
+```
+import { Client, XrdAsset } from '@xchainjs/xchain-radix'
+
+const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
+const params: XChainClientParams = {
+    network: Network.Mainnet,
+    phrase: phrase,
+}
+const radixClient = new Client(params)
+
+const txParams: TxParams = {
+    asset: XrdAsset,
+    amount: baseAmount(1000),
+    recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+}
+const transferTransaction = await radixClient.transfer(txParams)
+const transaction: Tx = await radixClient.getTransactionData(transferTransaction)
 
 ## Service providers
