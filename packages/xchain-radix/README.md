@@ -17,6 +17,7 @@ yarn add @xchainjs/xchain-radix
 ## Examples
 
 ### Creating a radix client
+
 ```
 import { Client } from '@xchainjs/xchain-radix'
 
@@ -29,6 +30,7 @@ const client = new Client(params)
 ```
 
 ### Creating a transaction
+
 ```
 import { Client, XrdAsset } from '@xchainjs/xchain-radix'
 
@@ -49,6 +51,7 @@ console.log(transferTransaction)
 ```
 
 ### Getting a transaction data
+
 ```
 import { Client, XrdAsset } from '@xchainjs/xchain-radix'
 
@@ -66,5 +69,18 @@ const txParams: TxParams = {
 }
 const transferTransaction = await radixClient.transfer(txParams)
 const transaction: Tx = await radixClient.getTransactionData(transferTransaction)
+```
 
 ## Service providers
+
+This package uses the following service providers
+
+| Function                    | Service               | Notes                                                                             | Rate limits                   |
+| --------------------------- | --------------------- | --------------------------------------------------------------------------------- | ----------------------------- |
+| Balances                    | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/StateEntityDetails          | x requests per IP per second. |
+| Transaction history         | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/StreamTransactions          | x requests per IP per minute  |
+| Transaction details by hash | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionCommittedDetails | x requests per IP per second  |
+| Fees                        | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionPreview          | x requests per IP per second  |
+| Transaction broadcast       | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionSubmit           | x requests per IP per second  |
+| Transfer                    | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionSubmit           | x requests per IP per second  |
+| Explorer                    | Dashboard             | https://dashboard.radixdlt.com/                                                   |                               |
