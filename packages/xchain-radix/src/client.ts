@@ -17,7 +17,9 @@ import {
   NetworkId,
   PrivateKey,
   RadixEngineToolkit,
-  SimpleTransactionBuilder,
+  TransactionBuilder,
+  TransactionManifest,
+  generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit'
 import {
   AssetInfo,
@@ -455,29 +457,38 @@ export default class Client extends BaseXChainClient {
    */
   async transfer(params: TxParams): Promise<string> {
     const networkId = this.getRadixNetwork()
-    const fromAccount = await this.getAddressAsync()
     const radixPrivateKey = this.getRadixPrivateKey()
+
+    if (params.asset == undefined) {
+      throw new Error('asset can not be undefined')
+    }
+    const preparedTransaction = await this.prepareTx(params)
+    const manifest: TransactionManifest = {
+      instructions: { kind: 'String', value: preparedTransaction.rawUnsignedTx },
+      blobs: [],
+    }
     try {
       const gatewayStatusResponse: GatewayStatusResponse = await this.gatewayApiClient.status.getCurrent()
-      const builder = await SimpleTransactionBuilder.new({
-        networkId: networkId,
-        validFromEpoch: gatewayStatusResponse.ledger_state.epoch,
-        fromAccount: fromAccount,
-        signerPublicKey: radixPrivateKey.publicKey(),
-      })
-      const preparedTransaction = await this.prepareTx(params)
-      const compiledTransaction = await builder
-        .transferFungible({
-          toAccount: JSON.parse(preparedTransaction.rawUnsignedTx)['toAccount'],
-          resourceAddress: JSON.parse(preparedTransaction.rawUnsignedTx)['resourceAddress'],
-          amount: JSON.parse(preparedTransaction.rawUnsignedTx)['amount'],
-        })
-        .compileIntent()
-        .compileNotarizedAsync(async (hash) => radixPrivateKey.signToSignature(hash))
+      const notarizedTransaction = await TransactionBuilder.new().then((builder) =>
+        builder
+          .header({
+            networkId: networkId,
+            startEpochInclusive: gatewayStatusResponse.ledger_state.epoch,
+            endEpochExclusive: gatewayStatusResponse.ledger_state.epoch + 10,
+            nonce: generateRandomNonce(),
+            notaryPublicKey: radixPrivateKey.publicKey(),
+            notaryIsSignatory: true,
+            tipPercentage: 0,
+          })
+          .manifest(manifest)
+          .notarize(radixPrivateKey),
+      )
 
-      const compiledTransactionHex = Convert.Uint8Array.toHexString(compiledTransaction.toByteArray())
+      const compiledTransaction = await RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
+      const compiledTransactionHex = Convert.Uint8Array.toHexString(compiledTransaction)
       await this.broadcastTx(compiledTransactionHex)
-      return compiledTransaction.intentHash.id
+      const transactionId = await RadixEngineToolkit.NotarizedTransaction.intentHash(notarizedTransaction)
+      return transactionId.id
     } catch (error) {
       throw new Error('Failed to transfer')
     }
@@ -507,15 +518,31 @@ export default class Client extends BaseXChainClient {
     if (params.asset == undefined) {
       throw new Error('asset can not be undefined')
     }
-    const transaction = {
-      toAccount: params.recipient,
-      resourceAddress: params.asset.symbol,
-      amount: params.amount.amount().toString(),
+    const fromAddress = await this.getAddressAsync()
+    const stringManifest = `
+    CALL_METHOD
+      Address("${fromAddress}")
+      "lock_fee"
+      Decimal("${params.amount.amount()}");
+    CALL_METHOD
+      Address("${fromAddress}")
+      "withdraw"
+      Address("${params.asset.symbol}")
+      Decimal("${params.amount.amount()}");
+    TAKE_FROM_WORKTOP
+      Address("${params.asset.symbol}")
+      Decimal("${params.amount.amount()}")
+      Bucket("xrd_payment");
+    CALL_METHOD
+      Address("${params.recipient}")
+      "try_deposit_or_abort"
+      Bucket("xrd_payment")
+      None;
+    `
+    const preparedTx = {
+      rawUnsignedTx: stringManifest,
     }
-    const prepareTx: PreparedTx = {
-      rawUnsignedTx: JSON.stringify(transaction),
-    }
-    return prepareTx
+    return preparedTx
   }
 
   /**

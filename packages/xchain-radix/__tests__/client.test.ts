@@ -201,10 +201,29 @@ describe('RadixClient Test', () => {
       amount: baseAmount(1000),
       recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
     }
-    const preparedTx = JSON.parse((await radixClient.prepareTx(txParams)).rawUnsignedTx)
-    expect(preparedTx['amount']).toBe('1000')
-    expect(preparedTx['resourceAddress']).toBe(XrdAsset.symbol)
-    expect(preparedTx['toAccount']).toBe('account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg')
+    const preparedTx = await radixClient.prepareTx(txParams)
+    const fromAddress = await radixClient.getAddressAsync()
+    const expectedTransaction = `
+    CALL_METHOD
+      Address("${fromAddress}")
+      "lock_fee"
+      Decimal("1000");
+    CALL_METHOD
+      Address("${fromAddress}")
+      "withdraw"
+      Address("resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd")
+      Decimal("1000");
+    TAKE_FROM_WORKTOP
+      Address("resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd")
+      Decimal("1000")
+      Bucket("xrd_payment");
+    CALL_METHOD
+      Address("account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg")
+      "try_deposit_or_abort"
+      Bucket("xrd_payment")
+      None;
+    `
+    expect(preparedTx.rawUnsignedTx).toBe(expectedTransaction)
   })
 
   it('client should be able transfer', async () => {
