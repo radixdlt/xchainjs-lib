@@ -167,7 +167,11 @@ export default class Client extends BaseXChainClient {
   getRadixPrivateKey(): PrivateKey {
     const privateKey = this.getPrivateKey()
     const privateKeyBytes = Uint8Array.from(privateKey)
-    return new PrivateKey.Ed25519(privateKeyBytes)
+    if (this.curve == 'Ed25519') {
+      return new PrivateKey.Ed25519(privateKeyBytes)
+    } else {
+      return new PrivateKey.Secp256k1(privateKeyBytes)
+    }
   }
 
   /**

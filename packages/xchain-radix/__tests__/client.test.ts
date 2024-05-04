@@ -32,7 +32,7 @@ describe('RadixClient Test', () => {
   it('client should be able to get address', async () => {
     const radixClient = createDefaultRadixClient()
     const address: string = await radixClient.getAddressAsync()
-    expect(address).toBe('account_rdx12x2k9rnshx46pwa9gu527dqt0tk3l064ynvcqeatgln4807902l4nn')
+    expect(address).toBe('account_rdx16xmah09yu9p9ynrmuc8z3a206n02tsmmkdvlmnx3cgu4s9r59wsxt2')
   })
 
   it('client with Ed25519 curve should be able to get address', async () => {
@@ -81,7 +81,7 @@ describe('RadixClient Test', () => {
     const address: string = await radixClient.getAddressAsync()
     const explorerAddress = radixClient.getExplorerAddressUrl(address)
     expect(explorerAddress).toBe(
-      'https://dashboard.radixdlt.com/account/account_rdx12x2k9rnshx46pwa9gu527dqt0tk3l064ynvcqeatgln4807902l4nn',
+      'https://dashboard.radixdlt.com/account/account_rdx16xmah09yu9p9ynrmuc8z3a206n02tsmmkdvlmnx3cgu4s9r59wsxt2',
     )
   })
 
