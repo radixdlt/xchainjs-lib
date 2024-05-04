@@ -12,6 +12,7 @@ import {
 } from '@radixdlt/babylon-gateway-api-sdk'
 import {
   Convert,
+  Curve,
   LTSRadixEngineToolkit,
   NetworkId,
   PrivateKey,
@@ -37,6 +38,7 @@ import {
 import { getSeed } from '@xchainjs/xchain-crypto/lib'
 import { Address, Asset, assetAmount, assetToBase, baseAmount } from '@xchainjs/xchain-util'
 import BIP32Factory, { BIP32Interface } from 'bip32'
+import { derivePath } from 'ed25519-hd-key'
 import * as ecc from 'tiny-secp256k1'
 // eslint-disable-next-line ordered-imports/ordered-imports
 import {
@@ -55,8 +57,10 @@ import {
 
 export default class Client extends BaseXChainClient {
   gatewayApiClient: GatewayApiClient
-  constructor(params: XChainClientParams) {
+  curve: Curve
+  constructor(params: XChainClientParams, curve: Curve) {
     super(RadixChain, { network: params.network, phrase: params.phrase, rootDerivationPaths: xrdRootDerivationPaths })
+    this.curve = curve
     this.gatewayApiClient = GatewayApiClient.initialize({
       networkId: this.getRadixNetwork(),
       applicationName: 'xchainjs',
@@ -144,13 +148,20 @@ export default class Client extends BaseXChainClient {
   }
 
   getPrivateKey(): Buffer {
-    const seed = getSeed(this.phrase)
-    const bip32 = BIP32Factory(ecc)
-    const node: BIP32Interface = bip32.fromSeed(seed)
     if (!this.rootDerivationPaths) throw new Error('no root derivation paths defined')
-    const child: BIP32Interface = node.derivePath(this.rootDerivationPaths[this.getNetwork()])
-    if (!child.privateKey) throw new Error('child does not have a privateKey')
-    return child.privateKey
+    const seed = getSeed(this.phrase)
+    const derivationPath = this.rootDerivationPaths[this.getNetwork()]
+    if (this.curve === 'Ed25519') {
+      const seedHex = seed.toString('hex')
+      const keys = derivePath(derivationPath, seedHex)
+      return keys.key
+    } else {
+      const bip32 = BIP32Factory(ecc)
+      const node: BIP32Interface = bip32.fromSeed(seed)
+      const child: BIP32Interface = node.derivePath(derivationPath)
+      if (!child.privateKey) throw new Error('child does not have a privateKey')
+      return child.privateKey
+    }
   }
 
   getRadixPrivateKey(): PrivateKey {

@@ -40,11 +40,6 @@ export const TRANSACTION_SUBMIT_PATH = '/transaction/submit'
 export const STATE_ENTITY_DETAILS_PATH = '/state/entity/details'
 export const STREAM_TRANSACTIONS_PATH = '/stream/transactions'
 
-export enum KeyType {
-  Ed25519 = 'Ed25519',
-  Secp256k1 = 'Secp256k1',
-}
-
 export const AssetXRD: Asset = {
   chain: RadixChain,
   symbol: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',

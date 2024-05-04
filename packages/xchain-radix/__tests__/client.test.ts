@@ -17,7 +17,7 @@ describe('RadixClient Test', () => {
       network: Network.Mainnet,
       phrase: phrase,
     }
-    return new Client(params)
+    return new Client(params, 'Secp256k1')
   }
 
   it('Invalid phrase is thrown', async () => {
@@ -26,13 +26,24 @@ describe('RadixClient Test', () => {
       network: Network.Mainnet,
       phrase: phrase,
     }
-    expect(() => new Client(params)).toThrowError('Invalid phrase')
+    expect(() => new Client(params, 'Ed25519')).toThrowError('Invalid phrase')
   })
 
   it('client should be able to get address', async () => {
     const radixClient = createDefaultRadixClient()
     const address: string = await radixClient.getAddressAsync()
     expect(address).toBe('account_rdx12x2k9rnshx46pwa9gu527dqt0tk3l064ynvcqeatgln4807902l4nn')
+  })
+
+  it('client with Ed25519 curve should be able to get address', async () => {
+    const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
+    const params: XChainClientParams = {
+      network: Network.Mainnet,
+      phrase: phrase,
+    }
+    const radixClient = new Client(params, 'Ed25519')
+    const address: string = await radixClient.getAddressAsync()
+    expect(address).toBe('account_rdx12xhd0hmqcmu72r3zdsdm6zexw33gjk5y2n73dyxju2cvpvlr8rzy87')
   })
 
   it('client should throw an Error when using getAddress', () => {
@@ -60,7 +71,7 @@ describe('RadixClient Test', () => {
       network: Network.Stagenet,
       phrase: phrase,
     }
-    const stokenetRadixClient = new Client(params)
+    const stokenetRadixClient = new Client(params, 'Secp256k1')
     const explorerAddress = stokenetRadixClient.getExplorerUrl()
     expect(explorerAddress).toBe('https://stokenet-dashboard.radixdlt.com')
   })
