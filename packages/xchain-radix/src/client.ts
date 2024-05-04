@@ -61,7 +61,12 @@ export default class Client extends BaseXChainClient {
   gatewayApiClient: GatewayApiClient
   curve: Curve
   constructor(params: XChainClientParams, curve: Curve) {
-    super(RadixChain, { network: params.network, phrase: params.phrase, rootDerivationPaths: xrdRootDerivationPaths })
+    super(RadixChain, {
+      network: params.network,
+      phrase: params.phrase,
+      rootDerivationPaths: xrdRootDerivationPaths,
+      feeBounds: params.feeBounds,
+    })
     this.curve = curve
     this.gatewayApiClient = GatewayApiClient.initialize({
       networkId: this.getRadixNetwork(),
@@ -523,7 +528,7 @@ export default class Client extends BaseXChainClient {
     CALL_METHOD
       Address("${fromAddress}")
       "lock_fee"
-      Decimal("${params.amount.amount()}");
+      Decimal("${this.feeBounds.upper}");
     CALL_METHOD
       Address("${fromAddress}")
       "withdraw"

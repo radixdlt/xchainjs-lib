@@ -16,6 +16,7 @@ describe('RadixClient Test', () => {
     const params: XChainClientParams = {
       network: Network.Mainnet,
       phrase: phrase,
+      feeBounds: { lower: 1, upper: 5 },
     }
     return new Client(params, 'Secp256k1')
   }
@@ -207,7 +208,7 @@ describe('RadixClient Test', () => {
     CALL_METHOD
       Address("${fromAddress}")
       "lock_fee"
-      Decimal("1000");
+      Decimal("5");
     CALL_METHOD
       Address("${fromAddress}")
       "withdraw"
