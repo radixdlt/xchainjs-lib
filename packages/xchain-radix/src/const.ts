@@ -24,3 +24,9 @@ export const xrdRootDerivationPaths: RootDerivationPaths = {
   [Network.Stagenet]: "m/44'/1022'/1'/525'/1460'/0'",
   [Network.Testnet]: "m/44'/1022'/1'/525'/1460'/0'",
 }
+
+export const bech32Networks: { [key: number]: string } = {
+  1: 'rdx',
+  2: 'stk',
+  3: 'stk',
+}

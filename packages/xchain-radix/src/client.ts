@@ -9,7 +9,6 @@ import {
   TransactionCommittedDetailsResponse,
   TransactionPreviewRequest,
   TransactionPreviewResponse,
-  TransactionSubmitResponse,
 } from '@radixdlt/babylon-gateway-api-sdk'
 import {
   Convert,
@@ -40,6 +39,7 @@ import {
 } from '@xchainjs/xchain-client'
 import { getSeed } from '@xchainjs/xchain-crypto/lib'
 import { Address, Asset, baseAmount } from '@xchainjs/xchain-util'
+import { bech32m } from 'bech32'
 import BIP32Factory, { BIP32Interface } from 'bip32'
 import { derivePath } from 'ed25519-hd-key'
 import * as ecc from 'tiny-secp256k1'
@@ -50,6 +50,7 @@ import {
   STOKENET_GATEWAY_URL,
   XRD_DECIMAL,
   XrdAsset,
+  bech32Networks,
   xrdRootDerivationPaths,
 } from './const'
 
@@ -288,7 +289,21 @@ export default class Client extends BaseXChainClient {
    */
   async validateAddressAsync(address: string): Promise<boolean> {
     try {
-      await RadixEngineToolkit.Address.decode(address)
+      const decodedAddress = bech32m.decode(address)
+
+      if (!decodedAddress.prefix.startsWith('account_')) {
+        return false
+      }
+
+      const network = decodedAddress.prefix.split('_')[1]
+      if (bech32Networks[this.getRadixNetwork()] !== network) {
+        return false
+      }
+
+      if (address.length !== 66) {
+        return false
+      }
+
       return true
     } catch (error) {
       return false
@@ -453,35 +468,45 @@ export default class Client extends BaseXChainClient {
    * @returns a transaction in Tx type
    */
   async convertTransactionFromHex(transaction_hex: string, intent_hash: string, confirmed_at: Date): Promise<Tx> {
-    const binaryString = Buffer.from(transaction_hex, 'hex').toString('binary')
-    const transactionBinary = new Uint8Array(binaryString.split('').map((char) => char.charCodeAt(0)))
-    const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
-    const withdrawAccount = Object.keys(transactionSummary.withdraws)[0]
-    const depositAccount = Object.keys(transactionSummary.deposits)[0]
-    const withdrawResource = Object.keys(transactionSummary.withdraws[withdrawAccount])[0]
-    const withdrawAmount: number = transactionSummary.withdraws[withdrawAccount][withdrawResource].toNumber()
+    const transactionBinary = Convert.HexString.toUint8Array(transaction_hex)
+    try {
+      const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
+      const withdrawAccount = Object.keys(transactionSummary.withdraws)[0]
+      const depositAccount = Object.keys(transactionSummary.deposits)[0]
+      const withdrawResource = Object.keys(transactionSummary.withdraws[withdrawAccount])[0]
+      const withdrawAmount: number = transactionSummary.withdraws[withdrawAccount][withdrawResource].toNumber()
 
-    const transaction: Tx = {
-      from: [
-        {
-          from: withdrawAccount,
-          amount: baseAmount(withdrawAmount),
-          asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
-        },
-      ],
-      to: [
-        {
-          to: depositAccount,
-          amount: baseAmount(withdrawAmount),
-          asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
-        },
-      ],
-      date: confirmed_at,
-      type: TxType.Transfer,
-      hash: intent_hash,
-      asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: 'radix' },
+      const transaction: Tx = {
+        from: [
+          {
+            from: withdrawAccount,
+            amount: baseAmount(withdrawAmount),
+            asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: RadixChain },
+          },
+        ],
+        to: [
+          {
+            to: depositAccount,
+            amount: baseAmount(withdrawAmount),
+            asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: RadixChain },
+          },
+        ],
+        date: confirmed_at,
+        type: TxType.Transfer,
+        hash: intent_hash,
+        asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: RadixChain },
+      }
+      return transaction
+    } catch (error) {
+      return {
+        from: [],
+        to: [],
+        asset: XrdAsset,
+        date: confirmed_at,
+        type: TxType.Unknown,
+        hash: intent_hash,
+      }
     }
-    return transaction
   }
 
   /**
@@ -506,25 +531,25 @@ export default class Client extends BaseXChainClient {
     )
     try {
       const gatewayStatusResponse: GatewayStatusResponse = await this.gatewayApiClient.status.getCurrent()
-      const transactionBuilder = await TransactionBuilder.new().then((builder) =>
-        builder.header({
-          networkId: networkId,
-          startEpochInclusive: gatewayStatusResponse.ledger_state.epoch,
-          endEpochExclusive: gatewayStatusResponse.ledger_state.epoch + 10,
-          nonce: generateRandomNonce(),
-          notaryPublicKey: radixPrivateKey.publicKey(),
-          notaryIsSignatory: true,
-          tipPercentage: 0,
-        }),
+      const notarizedTransaction = await TransactionBuilder.new().then((builder) =>
+        builder
+          .header({
+            networkId: networkId,
+            startEpochInclusive: gatewayStatusResponse.ledger_state.epoch,
+            endEpochExclusive: gatewayStatusResponse.ledger_state.epoch + 10,
+            nonce: generateRandomNonce(),
+            notaryPublicKey: radixPrivateKey.publicKey(),
+            notaryIsSignatory: true,
+            tipPercentage: 0,
+          })
+          .plainTextMessage(params.memo ? params.memo : '')
+          .manifest(transactionManifest)
+          .notarize(radixPrivateKey),
       )
 
-      if (params.memo !== undefined) {
-        transactionBuilder.plainTextMessage(params.memo)
-      }
-
-      const notarizedTransaction = await transactionBuilder.manifest(transactionManifest).notarize(radixPrivateKey)
       const compiledTransaction = await RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
       const compiledTransactionHex = Convert.Uint8Array.toHexString(compiledTransaction)
+
       if (broadcastTx) {
         await this.broadcastTx(compiledTransactionHex)
       }
@@ -540,13 +565,16 @@ export default class Client extends BaseXChainClient {
    * @returns - The response from the gateway
    */
   async broadcastTx(txHex: string): Promise<string> {
-    const transactionSubmitResponse: TransactionSubmitResponse =
-      await this.gatewayApiClient.transaction.innerClient.transactionSubmit({
-        transactionSubmitRequest: {
-          notarized_transaction_hex: txHex,
-        },
-      })
-    return JSON.stringify(transactionSubmitResponse)
+    await this.gatewayApiClient.transaction.innerClient.transactionSubmit({
+      transactionSubmitRequest: {
+        notarized_transaction_hex: txHex,
+      },
+    })
+    const notarizedTransaction = await RadixEngineToolkit.NotarizedTransaction.decompile(
+      Convert.HexString.toUint8Array(txHex),
+    )
+    const intentHash = await RadixEngineToolkit.NotarizedTransaction.intentHash(notarizedTransaction)
+    return Convert.Uint8Array.toHexString(intentHash.hash)
   }
 
   /**
