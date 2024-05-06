@@ -2,6 +2,7 @@ import {
   CommittedTransactionInfo,
   GatewayApiClient,
   GatewayStatusResponse,
+  PublicKey,
   StateEntityDetailsRequest,
   StateEntityDetailsResponse,
   TransactionCommittedDetailsRequest,
@@ -25,7 +26,6 @@ import {
   AssetInfo,
   Balance,
   BaseXChainClient,
-  FeeOption,
   FeeType,
   Fees,
   Network,
@@ -36,9 +36,10 @@ import {
   TxType,
   TxsPage,
   XChainClientParams,
+  singleFee,
 } from '@xchainjs/xchain-client'
 import { getSeed } from '@xchainjs/xchain-crypto/lib'
-import { Address, Asset, assetAmount, assetToBase, baseAmount } from '@xchainjs/xchain-util'
+import { Address, Asset, baseAmount } from '@xchainjs/xchain-util'
 import BIP32Factory, { BIP32Interface } from 'bip32'
 import { derivePath } from 'ed25519-hd-key'
 import * as ecc from 'tiny-secp256k1'
@@ -48,8 +49,8 @@ import {
   MAINNET_GATEWAY_URL,
   RadixChain,
   STOKENET_GATEWAY_URL,
-  TransferTransactionManifest,
   XRD_DECIMAL,
+  XrdAsset,
   xrdRootDerivationPaths,
 } from './const'
 
@@ -82,30 +83,41 @@ export default class Client extends BaseXChainClient {
    */
   async getFees(): Promise<Fees> {
     try {
+      const txParams: TxParams = {
+        asset: XrdAsset,
+        amount: baseAmount(1),
+        recipient: 'account_rdx1685t40mreptjhs9g3pg9lgf7k7rgppzjeknjgrpc7d0sumcjrsw6kj',
+      }
+
+      this.curve
+
+      const publicKey: PublicKey = {
+        key_hex: this.getRadixPrivateKey().publicKey().hexString(),
+        key_type: this.curve === 'Secp256k1' ? 'EcdsaSecp256k1' : 'EddsaEd25519',
+      }
+      const txManifest = this.prepareTx(txParams)
       const gatewayStatusResponse: GatewayStatusResponse = await this.gatewayApiClient.status.getCurrent()
       const transactionPreviewRequest: TransactionPreviewRequest = {
-        manifest: TransferTransactionManifest,
+        manifest: (await txManifest).rawUnsignedTx,
         start_epoch_inclusive: gatewayStatusResponse.ledger_state.epoch,
         end_epoch_exclusive: gatewayStatusResponse.ledger_state.epoch + 10,
         tip_percentage: 10,
-        nonce: Math.floor(Math.random() * 1000000),
-        signer_public_keys: [
-          {
-            key_type: 'EddsaEd25519',
-            key_hex: this.getRadixPrivateKey().publicKey().hex(),
-          },
-        ],
+        nonce: generateRandomNonce(),
+        notary_is_signatory: true,
+        notary_public_key: publicKey,
         flags: {
-          use_free_credit: true,
+          use_free_credit: false,
           assume_all_signature_proofs: false,
           skip_epoch_check: true,
         },
+        signer_public_keys: [publicKey],
       }
       const transactionPreviewResponse: TransactionPreviewResponse =
         await this.gatewayApiClient.transaction.innerClient.transactionPreview({
           transactionPreviewRequest: transactionPreviewRequest,
         })
       const receipt = transactionPreviewResponse.receipt as {
+        status: string
         fee_summary: {
           execution_cost_units_consumed: number
           finalization_cost_units_consumed: number
@@ -116,19 +128,23 @@ export default class Client extends BaseXChainClient {
           xrd_total_tipping_cost: string
         }
       }
-      const totalFees =
-        parseFloat(receipt.fee_summary.xrd_total_execution_cost) +
-        parseFloat(receipt.fee_summary.xrd_total_finalization_cost) +
-        parseFloat(receipt.fee_summary.xrd_total_royalty_cost) +
-        parseFloat(receipt.fee_summary.xrd_total_storage_cost) +
-        parseFloat(receipt.fee_summary.xrd_total_tipping_cost)
-      const estimatedFees: Fees = {
-        type: FeeType.FlatFee,
-        [FeeOption.Average]: assetToBase(assetAmount(totalFees)),
-        [FeeOption.Fast]: assetToBase(assetAmount(totalFees)),
-        [FeeOption.Fastest]: assetToBase(assetAmount(totalFees)),
+
+      if (receipt.status !== 'Rejected') {
+        const totalFees =
+          parseFloat(receipt.fee_summary.xrd_total_execution_cost) +
+          parseFloat(receipt.fee_summary.xrd_total_finalization_cost) +
+          parseFloat(receipt.fee_summary.xrd_total_royalty_cost) +
+          parseFloat(receipt.fee_summary.xrd_total_storage_cost) +
+          parseFloat(receipt.fee_summary.xrd_total_tipping_cost)
+        const decimalDiff = XRD_DECIMAL - 8
+        // Adjust the fee rate to match radix decimal precision
+        const feeRate1e18 = totalFees * 10 ** decimalDiff
+        // Create the fee amount with the adjusted fee rate
+        const fee = baseAmount(feeRate1e18, XRD_DECIMAL)
+        return singleFee(FeeType.FlatFee, fee)
+      } else {
+        throw new Error('Preview transaction was Rejected')
       }
-      return estimatedFees
     } catch (error) {
       throw new Error('Failed to calculate the fees')
     }
@@ -460,7 +476,7 @@ export default class Client extends BaseXChainClient {
    * @param params - The transactions params
    * @returns A signed transaction hex
    */
-  async transfer(params: TxParams): Promise<string> {
+  async transfer(params: TxParams, broadcastTx = true): Promise<string> {
     const networkId = this.getRadixNetwork()
     const radixPrivateKey = this.getRadixPrivateKey()
 
@@ -491,7 +507,9 @@ export default class Client extends BaseXChainClient {
 
       const compiledTransaction = await RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
       const compiledTransactionHex = Convert.Uint8Array.toHexString(compiledTransaction)
-      await this.broadcastTx(compiledTransactionHex)
+      if (broadcastTx) {
+        await this.broadcastTx(compiledTransactionHex)
+      }
       const transactionId = await RadixEngineToolkit.NotarizedTransaction.intentHash(notarizedTransaction)
       return transactionId.id
     } catch (error) {
