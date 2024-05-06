@@ -10,13 +10,6 @@ export const RadixChain = 'RADIX' as const
 export const MAINNET_GATEWAY_URL = 'https://mainnet.radixdlt.com'
 export const STOKENET_GATEWAY_URL = 'https://stokenet.radixdlt.com'
 
-export const AssetXRD: Asset = {
-  chain: RadixChain,
-  symbol: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
-  ticker: 'XRD',
-  synth: false,
-}
-
 export const XRD_DECIMAL = 18
 
 export const XrdAsset: Asset = {

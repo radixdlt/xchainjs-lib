@@ -45,7 +45,6 @@ import { derivePath } from 'ed25519-hd-key'
 import * as ecc from 'tiny-secp256k1'
 // eslint-disable-next-line ordered-imports/ordered-imports
 import {
-  AssetXRD,
   MAINNET_GATEWAY_URL,
   RadixChain,
   STOKENET_GATEWAY_URL,
@@ -61,12 +60,23 @@ import {
 export default class Client extends BaseXChainClient {
   gatewayApiClient: GatewayApiClient
   curve: Curve
-  constructor(params: XChainClientParams, curve: Curve) {
+  constructor(
+    {
+      network = Network.Mainnet,
+      phrase,
+      rootDerivationPaths = xrdRootDerivationPaths,
+      feeBounds = {
+        lower: 1,
+        upper: 1,
+      },
+    }: XChainClientParams,
+    curve: Curve,
+  ) {
     super(RadixChain, {
-      network: params.network,
-      phrase: params.phrase,
-      rootDerivationPaths: xrdRootDerivationPaths,
-      feeBounds: params.feeBounds,
+      network: network,
+      phrase: phrase,
+      rootDerivationPaths: rootDerivationPaths,
+      feeBounds: feeBounds,
     })
     this.curve = curve
     this.gatewayApiClient = GatewayApiClient.initialize({
@@ -171,9 +181,13 @@ export default class Client extends BaseXChainClient {
   }
 
   getPrivateKey(): Buffer {
-    if (!this.rootDerivationPaths) throw new Error('no root derivation paths defined')
     const seed = getSeed(this.phrase)
-    const derivationPath = this.rootDerivationPaths[this.getNetwork()]
+    let derivationPath
+    if (this.rootDerivationPaths) {
+      derivationPath = this.rootDerivationPaths[this.getNetwork()]
+    } else {
+      derivationPath = xrdRootDerivationPaths[this.getNetwork()]
+    }
     if (this.curve === 'Ed25519') {
       const seedHex = seed.toString('hex')
       const keys = derivePath(derivationPath, seedHex)
@@ -481,30 +495,34 @@ export default class Client extends BaseXChainClient {
     const radixPrivateKey = this.getRadixPrivateKey()
 
     if (params.asset == undefined) {
-      throw new Error('asset can not be undefined')
+      params.asset = XrdAsset
     }
+
     const preparedTransaction = await this.prepareTx(params)
-    const manifest: TransactionManifest = {
-      instructions: { kind: 'String', value: preparedTransaction.rawUnsignedTx },
-      blobs: [],
-    }
+    const compiledTransactionManifest = await Convert.HexString.toUint8Array(preparedTransaction.rawUnsignedTx)
+    const transactionManifest = await RadixEngineToolkit.TransactionManifest.decompile(
+      compiledTransactionManifest,
+      networkId,
+    )
     try {
       const gatewayStatusResponse: GatewayStatusResponse = await this.gatewayApiClient.status.getCurrent()
-      const notarizedTransaction = await TransactionBuilder.new().then((builder) =>
-        builder
-          .header({
-            networkId: networkId,
-            startEpochInclusive: gatewayStatusResponse.ledger_state.epoch,
-            endEpochExclusive: gatewayStatusResponse.ledger_state.epoch + 10,
-            nonce: generateRandomNonce(),
-            notaryPublicKey: radixPrivateKey.publicKey(),
-            notaryIsSignatory: true,
-            tipPercentage: 0,
-          })
-          .manifest(manifest)
-          .notarize(radixPrivateKey),
+      const transactionBuilder = await TransactionBuilder.new().then((builder) =>
+        builder.header({
+          networkId: networkId,
+          startEpochInclusive: gatewayStatusResponse.ledger_state.epoch,
+          endEpochExclusive: gatewayStatusResponse.ledger_state.epoch + 10,
+          nonce: generateRandomNonce(),
+          notaryPublicKey: radixPrivateKey.publicKey(),
+          notaryIsSignatory: true,
+          tipPercentage: 0,
+        }),
       )
 
+      if (params.memo !== undefined) {
+        transactionBuilder.plainTextMessage(params.memo)
+      }
+
+      const notarizedTransaction = await transactionBuilder.manifest(transactionManifest).notarize(radixPrivateKey)
       const compiledTransaction = await RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
       const compiledTransactionHex = Convert.Uint8Array.toHexString(compiledTransaction)
       if (broadcastTx) {
@@ -539,7 +557,7 @@ export default class Client extends BaseXChainClient {
    */
   async prepareTx(params: TxParams): Promise<PreparedTx> {
     if (params.asset == undefined) {
-      throw new Error('asset can not be undefined')
+      params.asset = XrdAsset
     }
     const fromAddress = await this.getAddressAsync()
     const stringManifest = `
@@ -562,10 +580,22 @@ export default class Client extends BaseXChainClient {
       Bucket("xrd_payment")
       None;
     `
-    const preparedTx = {
-      rawUnsignedTx: stringManifest,
+
+    const transactionsManifest = {
+      instructions: { kind: 'String', value: stringManifest },
+      blobs: [],
+    } as TransactionManifest
+    const networkId = this.getRadixNetwork()
+    try {
+      const transactionIntent = await RadixEngineToolkit.TransactionManifest.compile(transactionsManifest, networkId)
+      const transactionIntentHex = await Convert.Uint8Array.toHexString(transactionIntent)
+      const preparedTx = {
+        rawUnsignedTx: transactionIntentHex,
+      }
+      return preparedTx
+    } catch (error) {
+      throw new Error('Failed to transfer')
     }
-    return preparedTx
   }
 
   /**
@@ -573,11 +603,10 @@ export default class Client extends BaseXChainClient {
    * @returns Asset information.
    */
   getAssetInfo(): AssetInfo {
-    const assetInfo: AssetInfo = {
-      asset: AssetXRD,
+    return {
+      asset: XrdAsset,
       decimal: XRD_DECIMAL,
     }
-    return assetInfo
   }
 }
 
