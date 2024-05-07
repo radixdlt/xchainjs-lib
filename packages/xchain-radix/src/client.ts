@@ -121,7 +121,7 @@ export default class Client extends BaseXChainClient {
           assume_all_signature_proofs: false,
           skip_epoch_check: true,
         },
-        signer_public_keys: [publicKey],
+        signer_public_keys: [],
       }
       const transactionPreviewResponse: TransactionPreviewResponse =
         await this.gatewayApiClient.transaction.innerClient.transactionPreview({
