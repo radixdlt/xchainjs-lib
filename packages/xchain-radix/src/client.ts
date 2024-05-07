@@ -169,7 +169,7 @@ export default class Client extends BaseXChainClient {
         networkId = NetworkId.Mainnet
         break
       case Network.Testnet:
-        networkId = NetworkId.InternalTestNet
+        networkId = NetworkId.Kisharnet
         break
       case Network.Stagenet:
         networkId = NetworkId.Stokenet
@@ -189,6 +189,7 @@ export default class Client extends BaseXChainClient {
     } else {
       derivationPath = xrdRootDerivationPaths[this.getNetwork()]
     }
+
     if (this.curve === 'Ed25519') {
       const seedHex = seed.toString('hex')
       const keys = derivePath(derivationPath, seedHex)

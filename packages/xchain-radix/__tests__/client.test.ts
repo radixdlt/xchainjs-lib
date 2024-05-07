@@ -54,6 +54,32 @@ describe('RadixClient Test', () => {
     )
   })
 
+  it('client with derive the same keys as wallet', async () => {
+    const phrase = 'equip will roof matter pink blind book anxiety banner elbow sun young'
+    const params: XChainClientParams = {
+      network: Network.Testnet,
+      phrase: phrase,
+    }
+    const radixClient = new Client(params, 'Ed25519')
+    // Reference: https://github.com/radixdlt/sargon/blob/0ffac13ece645c500fe74d2f854186c6340b4cd7/fixtures/vector/cap26_curve25519.json#L6
+    expect(radixClient.getRadixPrivateKey().publicKeyHex()).toBe(
+      '451152a1cef7be603205086d4ebac0a0b78fda2ff4684b9dea5ca9ef003d4e7d',
+    )
+  })
+
+  it('client with derive the same keys as wallet using a secp256k1 curve', async () => {
+    const phrase = 'equip will roof matter pink blind book anxiety banner elbow sun young'
+    const params: XChainClientParams = {
+      network: Network.Testnet,
+      phrase: phrase,
+    }
+    const radixClient = new Client(params, 'Secp256k1')
+    // Reference: https://github.com/radixdlt/sargon/blob/0ffac13ece645c500fe74d2f854186c6340b4cd7/fixtures/vector/cap26_secp256k1.json#L6
+    expect(radixClient.getRadixPrivateKey().publicKeyHex()).toBe(
+      '029932e6683332a3c0d8cd2862c129e0c2501f45c17c88eecac27cc22baf7f80ed',
+    )
+  })
+
   it('client should be able to get the network', async () => {
     const radixClient = createDefaultRadixClient()
     const network = radixClient.getNetwork()
