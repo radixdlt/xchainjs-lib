@@ -28,6 +28,7 @@ import {
   address,
   bucket,
   decimal,
+  enumeration,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit'
 import {
@@ -53,7 +54,14 @@ import BIP32Factory, { BIP32Interface } from 'bip32'
 import { derivePath } from 'ed25519-hd-key'
 import * as ecc from 'tiny-secp256k1'
 // eslint-disable-next-line ordered-imports/ordered-imports
-import { RadixChain, XRD_DECIMAL, XrdAsset, bech32Networks, xrdRootDerivationPaths } from './const'
+import {
+  RadixChain,
+  XRD_DECIMAL,
+  XrdAssetStokenet,
+  bech32Lengths,
+  bech32Networks,
+  xrdRootDerivationPaths,
+} from './const'
 
 const xChainJsNetworkToRadixNetworkId = (network: Network): number => {
   switch (network) {
@@ -142,8 +150,6 @@ export class RadixSpecificClient {
     const previewReceipt = (await this.previewIntent(intentWithHardcodedFee)) as PartialTransactionPreviewResponse
     // Ensure that the preview was successful.
 
-    console.log(previewReceipt)
-
     if (previewReceipt.receipt.status !== 'Succeeded') {
       throw new Error('Preview for fees was not successful')
     }
@@ -183,14 +189,14 @@ export class RadixSpecificClient {
     notarizedTransaction: NotarizedTransaction,
   ): Promise<[TransactionSubmitResponse, TransactionHash]> {
     const intentHash = await RadixEngineToolkit.NotarizedTransaction.intentHash(notarizedTransaction)
-    return RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
-      .then(Convert.Uint8Array.toHexString)
-      .then((transactionHex) =>
-        this.innerGatewayClient.transaction.innerClient.transactionSubmit({
-          transactionSubmitRequest: { notarized_transaction_hex: transactionHex },
-        }),
-      )
-      .then((response) => [response, intentHash])
+    const transactionHex = await RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction).then(
+      Convert.Uint8Array.toHexString,
+    )
+    const response = await this.innerGatewayClient.transaction.innerClient.transactionSubmit({
+      transactionSubmitRequest: { notarized_transaction_hex: transactionHex },
+    })
+
+    return [response, intentHash]
   }
   // #endregion Public Methods
 
@@ -217,7 +223,7 @@ export class RadixSpecificClient {
         decimal(amount),
       ])
       .takeFromWorktop(resourceAddress, decimal(amount).value, (builder, bucketId) => {
-        return builder.callMethod(to, 'try_deposit_or_abort', [bucket(bucketId)])
+        return builder.callMethod(to, 'try_deposit_or_abort', [bucket(bucketId), enumeration(0)])
       })
       .build()
   }
@@ -260,7 +266,7 @@ export class RadixSpecificClient {
         notary_is_signatory: intent.header.notaryIsSignatory,
         tip_percentage: intent.header.tipPercentage,
         nonce: intent.header.nonce,
-        signer_public_keys: [],
+        signer_public_keys: [RadixSpecificClient.retPublicKeyToGatewayPublicKey(intent.header.notaryPublicKey)],
         // TODO: Add message
         flags: {
           assume_all_signature_proofs: false,
@@ -269,7 +275,7 @@ export class RadixSpecificClient {
         },
       },
     }
-    console.log(request)
+
     return this.innerGatewayClient.transaction.innerClient.transactionPreview(request)
   }
 
@@ -337,7 +343,6 @@ export default class Client extends BaseXChainClient {
   async getFees(): Promise<Fees> {
     // TODO: This can fail if we use it on stokenet, we need to replace these with network aware
     // addresses.
-    console.log('Calling get fees')
     const feesInXrd = await this.radixSpecificClient
       .constructSimpleTransferIntent(
         'account_rdx16803fft0ppmre8cr48njz2mxr2ankuhn85k0r6yfhwapwe0qk0j2pg',
@@ -463,7 +468,6 @@ export default class Client extends BaseXChainClient {
   validateAddress(address: string): boolean {
     try {
       const decodedAddress = bech32m.decode(address)
-
       if (!decodedAddress.prefix.startsWith('account_')) {
         return false
       }
@@ -473,7 +477,7 @@ export default class Client extends BaseXChainClient {
         return false
       }
 
-      if (address.length !== 66) {
+      if (address.length !== bech32Lengths[this.getRadixNetwork()]) {
         return false
       }
 
@@ -668,7 +672,7 @@ export default class Client extends BaseXChainClient {
       return {
         from: [],
         to: [],
-        asset: XrdAsset,
+        asset: XrdAssetStokenet,
         date: confirmed_at,
         type: TxType.Unknown,
         hash: intent_hash,
@@ -696,9 +700,9 @@ export default class Client extends BaseXChainClient {
         .notarize(this.getRadixPrivateKey())
     })
 
-    return RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
-      .then(Convert.Uint8Array.toHexString)
-      .then(this.broadcastTx)
+    const notarizedTransactionBytes = await RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
+    const transactionId = await this.broadcastTx(Convert.Uint8Array.toHexString(notarizedTransactionBytes))
+    return transactionId
   }
 
   /**
@@ -707,9 +711,11 @@ export default class Client extends BaseXChainClient {
    * @returns - The response from the gateway
    */
   async broadcastTx(txHex: string): Promise<string> {
-    return RadixEngineToolkit.NotarizedTransaction.decompile(Convert.HexString.toUint8Array(txHex))
-      .then(this.radixSpecificClient.submitTransaction)
-      .then((response) => response[1].id)
+    const notarizedTransaction = await RadixEngineToolkit.NotarizedTransaction.decompile(
+      Convert.HexString.toUint8Array(txHex),
+    )
+    const response = await this.radixSpecificClient.submitTransaction(notarizedTransaction)
+    return response[1].id
   }
 
   /**
@@ -724,13 +730,12 @@ export default class Client extends BaseXChainClient {
       .constructSimpleTransferIntent(
         from,
         params.recipient,
-        (params.asset ?? XrdAsset).symbol,
+        (params.asset ?? XrdAssetStokenet).symbol,
         params.amount.amount().toNumber(),
         this.getRadixPrivateKey().publicKey(),
         params.memo,
       )
       .then((response) => response.intent)
-
     const compiledIntent = await RadixEngineToolkit.Intent.compile(intent)
     return {
       rawUnsignedTx: Convert.Uint8Array.toHexString(compiledIntent),
@@ -743,7 +748,7 @@ export default class Client extends BaseXChainClient {
    */
   getAssetInfo(): AssetInfo {
     return {
-      asset: XrdAsset,
+      asset: XrdAssetStokenet,
       decimal: XRD_DECIMAL,
     }
   }

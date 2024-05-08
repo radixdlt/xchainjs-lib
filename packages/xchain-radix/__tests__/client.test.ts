@@ -1,4 +1,5 @@
 import { GatewayStatusResponse } from '@radixdlt/babylon-gateway-api-sdk'
+import { Convert, RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit'
 import { Balance, Fees, Network, Tx, TxParams, XChainClientParams } from '@xchainjs/xchain-client/src'
 import { Asset, baseAmount } from '@xchainjs/xchain-util'
 import {
@@ -8,7 +9,7 @@ import {
   mockTransactionPreviewResponse,
 } from '../__mocks__/mocks'
 import Client from '../src/client'
-import { XrdAsset } from '../src/const'
+import { XrdAssetStokenet } from '../src/const'
 
 describe('RadixClient Test', () => {
   const createClient = (): Client => {
@@ -33,7 +34,7 @@ describe('RadixClient Test', () => {
   it('client should be able to get address', async () => {
     const client = createClient()
     const address: string = await client.getAddressAsync()
-    expect(address).toBe('account_rdx129dw6f6zqtl3yxwusmw5tq93fnvcwpammdf0e0a8gn0pseepqxk0st')
+    expect(address).toBe('account_tdx_2_1292a230ugrfdq96skhg92ccam3h6dv0kw707curmzel0d92ctqun5z')
   })
 
   it('client with Secp256k1 curve should be able to get address', async () => {
@@ -83,13 +84,13 @@ describe('RadixClient Test', () => {
   it('client should be able to get the network', async () => {
     const client = createClient()
     const network = client.getNetwork()
-    expect(network).toBe(Network.Mainnet)
+    expect(network).toBe(Network.Testnet)
   })
 
   it('client should be able to get the explorer url', async () => {
     const client = createClient()
     const explorerAddress = client.getExplorerUrl()
-    expect(explorerAddress).toBe('https://dashboard.radixdlt.com')
+    expect(explorerAddress).toBe('https://stokenet-dashboard.radixdlt.com')
   })
 
   it('client should be able to get the explorer url for stokenet', async () => {
@@ -108,7 +109,7 @@ describe('RadixClient Test', () => {
     const address: string = await client.getAddressAsync()
     const explorerAddress = client.getExplorerAddressUrl(address)
     expect(explorerAddress).toBe(
-      'https://dashboard.radixdlt.com/account/account_rdx129dw6f6zqtl3yxwusmw5tq93fnvcwpammdf0e0a8gn0pseepqxk0st',
+      'https://stokenet-dashboard.radixdlt.com/account/account_tdx_2_1292a230ugrfdq96skhg92ccam3h6dv0kw707curmzel0d92ctqun5z',
     )
   })
 
@@ -118,7 +119,7 @@ describe('RadixClient Test', () => {
       'txid_rdx1ggem7tu4nuhwm3lcc8z9jwyyp03l92pn9xfgjkdf0277hkr8fs6sudeks2',
     )
     expect(explorerAddress).toBe(
-      'https://dashboard.radixdlt.com/transaction/txid_rdx1ggem7tu4nuhwm3lcc8z9jwyyp03l92pn9xfgjkdf0277hkr8fs6sudeks2',
+      'https://stokenet-dashboard.radixdlt.com/transaction/txid_rdx1ggem7tu4nuhwm3lcc8z9jwyyp03l92pn9xfgjkdf0277hkr8fs6sudeks2',
     )
   })
 
@@ -252,102 +253,57 @@ describe('RadixClient Test', () => {
     })
   })
 
-  // const getCurrentEpoch = async (statusApi: StatusApi): Promise<number> =>
-  //   statusApi.gatewayStatus().then((output) => output.ledger_state.epoch)
-
-  // const submitTransaction = async (
-  //   transactionApi: TransactionApi,
-  //   compiledTransaction: Uint8Array,
-  // ): Promise<TransactionSubmitResponse> =>
-  //   transactionApi.transactionSubmit({
-  //     transactionSubmitRequest: {
-  //       notarized_transaction_hex: Convert.Uint8Array.toHexString(compiledTransaction),
-  //     },
-  //   })
-
-  // it('client should be able prepare a transaction', async () => {
-  //   const phraseOne = 'rural bright ball negative already grass good grant nation screen model pizza'
-  //   const paramsOne: XChainClientParams = {
-  //     network: Network.Testnet,
-  //     phrase: phraseOne,
-  //     feeBounds: { lower: 1, upper: 5 },
-  //   }
-  //   const clientOne = new Client(paramsOne, 'Ed25519')
-
-  //   const apiConfiguration = new Configuration({
-  //     basePath: 'https://stokenet.radixdlt.com',
-  //   })
-  //   const toAccount = await clientOne.getAddressAsync()
-  //   const statusApi = new StatusApi(apiConfiguration)
-  //   const currentEpoch = await getCurrentEpoch(statusApi)
-  //   const freeXrdForAccountTransaction = await SimpleTransactionBuilder.freeXrdFromFaucet({
-  //     networkId: 2,
-  //     toAccount: toAccount,
-  //     validFromEpoch: currentEpoch,
-  //   })
-  //   const transactionApi = new TransactionApi(apiConfiguration)
-
-  //   // After the transaction has been built, we can get the transaction id (transaction hash) which is
-  //   // the identifier used to get information on this transaction through the gateway.
-  //   console.log('Transaction ID:', freeXrdForAccountTransaction.transactionId.id)
-
-  //   // To submit the transaction to the Gateway API, it must first be compiled or converted from its
-  //   // human readable format down to an array of bytes that can be consumed by the gateway. This can
-  //   // be done by calling the compile method on the transaction object.
-
-  //   const submissionResult = await submitTransaction(transactionApi, freeXrdForAccountTransaction.compiled)
-  //   console.log('Transaction submission result:', submissionResult)
-  // })
-
   it('client should be able prepare a transaction', async () => {
     const client = createClient()
 
-    const phraseTwo = 'equip will roof matter pink blind book anxiety banner elbow sun young'
-    const paramsTwo: XChainClientParams = {
-      network: Network.Testnet,
-      phrase: phraseTwo,
-      feeBounds: { lower: 1, upper: 5 },
-    }
-    const clientTwo = new Client(paramsTwo, 'Ed25519')
+    const getCurrentMock = jest.fn().mockResolvedValue({ ledger_state: { epoch: 123 } } as GatewayStatusResponse)
+    client.radixClient.gatewayClient.status.getCurrent = getCurrentMock
+    const transactionPreviewResponseMock = jest.fn().mockResolvedValue(mockTransactionPreviewResponse)
+    client.radixClient.gatewayClient.transaction.innerClient.transactionPreview = transactionPreviewResponseMock
 
-    // const transactionPreviewResponseMock = jest.fn().mockResolvedValue(mockTransactionPreviewResponse)
-    // client.radixClient.gatewayClient.transaction.innerClient.transactionPreview = transactionPreviewResponseMock
-
-    const recipient = await clientTwo.getAddressAsync()
     const txParams: TxParams = {
-      asset: XrdAsset,
+      asset: XrdAssetStokenet,
       amount: baseAmount(1),
-      recipient: recipient,
+      recipient: 'account_tdx_2_129wjagjzxltd0clr3q4z7hqpw5cc7weh9trs4e9k3zfwqpj636e5zf',
+      memo: 'test',
     }
     const preparedTx = await client.prepareTx(txParams)
-    const expectedTransaction =
-      '4d210220220441038000d1064f75d5b94ece7f539be0c06b6754f2a7d700336ca1ac04f7c37b238b0c086c6f636b5f6665652101850000f444829163450000000000000000000000000000000041038000d1064f75d5b94ece7f539be0c06b6754f2a7d700336ca1ac04f7c37b238b0c087769746864726177210280005da66318c6318c61f5a61b4c6318c6318cf794aa8d295f14e6318c6318c6850000a0dec5adc93536000000000000000000000000000000000280005da66318c6318c61f5a61b4c6318c6318cf794aa8d295f14e6318c6318c6850000a0dec5adc9353600000000000000000000000000000041038000d148b7923acafac9ccc1ab794cda7e000ebbf3f0f51e0d2460a19c7424140c147472795f6465706f7369745f6f725f61626f72742102810000000022000023202000'
-    expect(preparedTx.rawUnsignedTx).toBe(expectedTransaction)
+    const decompiledIntent = await RadixEngineToolkit.Intent.decompile(
+      Convert.HexString.toUint8Array(preparedTx.rawUnsignedTx),
+    )
+    // TODO add better assertions
+    expect(decompiledIntent.manifest.instructions.value.length).toBe(3)
   })
 
-  // it('client should be able transfer', async () => {
-  //   const client = createClient()
-  //   const broadcastTxMock = jest.fn()
-  //   client.broadcastTx = broadcastTxMock
-  //   const getCurrentMock = jest.fn().mockResolvedValue({ ledger_state: { epoch: 123 } } as GatewayStatusResponse)
-  //   client.radixClient.gatewayClient.status.getCurrent = getCurrentMock
-  //   const txParams: TxParams = {
-  //     asset: XrdAsset,
-  //     amount: baseAmount(1000),
-  //     recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
-  //   }
-  //   const transferTransaction = await client.transfer(txParams)
-  //   expect(transferTransaction.startsWith('txid_rdx')).toBe(true)
-  //   expect(broadcastTxMock).toBeCalledTimes(1)
-  // })
+  it('client should be able transfer', async () => {
+    const client = createClient()
 
-  // it('client should be able broadcast tx', async () => {
-  //   const client = createClient()
-  //   const transactionSubmitMock = jest.fn()
-  //   client.radixClient.gatewayClient.transaction.innerClient.transactionSubmit = transactionSubmitMock
-  //   const transactionHex =
-  //     '4d22030221022104210707010a7b000000000000000a8500000000000000096cffe0ed22000120072102d80d1531c102a1bc9a36db6b91ac9dc8e58d19464297e49cc8e740d0f20cd55a010108000020220441038000d1064f75d5b94ece7f539be0c06b6754f2a7d700336ca1ac04f7c37b238b0c086c6f636b5f6665652101850000f444829163450000000000000000000000000000000041038000d1064f75d5b94ece7f539be0c06b6754f2a7d700336ca1ac04f7c37b238b0c087769746864726177210280005da66318c6318c61f5a61b4c6318c6318cf794aa8d295f14e6318c6318c6850000a0dec5adc93536000000000000000000000000000000000280005da66318c6318c61f5a61b4c6318c6318cf794aa8d295f14e6318c6318c6850000a0dec5adc9353600000000000000000000000000000041038000d148b7923acafac9ccc1ab794cda7e000ebbf3f0f51e0d2460a19c7424140c147472795f6465706f7369745f6f725f61626f72742102810000000022000020200022010121020c0a746578742f706c61696e2200010c00202200220001210120074100cf13f2fbc6ac595bbffea20740d43bd138902a99764fb792e347e04049c519565a46cd9221b9122c76df2d3ca79fd0cdf667a5c7d06b9c97ce1d61acb546e4ab'
-  //   await client.broadcastTx(transactionHex)
-  //   expect(client.radixClient.gatewayClient.transaction.innerClient.transactionSubmit).toBeCalledTimes(1)
-  // })
+    const broadcastTxMock = jest.fn()
+    client.broadcastTx = broadcastTxMock
+
+    const getCurrentMock = jest.fn().mockResolvedValue({ ledger_state: { epoch: 123 } } as GatewayStatusResponse)
+    client.radixClient.gatewayClient.status.getCurrent = getCurrentMock
+
+    const transactionPreviewResponseMock = jest.fn().mockResolvedValue(mockTransactionPreviewResponse)
+    client.radixClient.gatewayClient.transaction.innerClient.transactionPreview = transactionPreviewResponseMock
+
+    const txParams: TxParams = {
+      asset: XrdAssetStokenet,
+      amount: baseAmount(1),
+      recipient: 'account_tdx_2_129wjagjzxltd0clr3q4z7hqpw5cc7weh9trs4e9k3zfwqpj636e5zf',
+      memo: 'test',
+    }
+    await client.transfer(txParams)
+    expect(broadcastTxMock).toBeCalledTimes(1)
+  })
+
+  it('client should be able broadcast tx', async () => {
+    const client = createClient()
+    const transactionSubmitMock = jest.fn()
+    client.radixClient.gatewayClient.transaction.innerClient.transactionSubmit = transactionSubmitMock
+    const transactionHex =
+      '4d22030221022104210707020a7b000000000000000a850000000000000009a92f3af1220101200720f926e5d67daa984375a86abbb305abc350c7dadba11d348c1cf4db27640c8d4e0101080000202203410380005155d545fc40d2d01750b5d055631ddc6fa6b1f6779fec707b167ef695580c156c6f636b5f6665655f616e645f7769746864726177210385c48edb420206cc050000000000000000000000000000000080005da66318c6318c61f5a61b4c6318c6318cf794aa8d295f14e6318c6318c685000064a7b3b6e00d00000000000000000000000000000000000280005da66318c6318c61f5a61b4c6318c6318cf794aa8d295f14e6318c6318c685000064a7b3b6e00d0000000000000000000000000000000041038000515d2ea24237d6d7e3e3882a2f5c0175318f3b372ac70ae4b68892e0065a0c147472795f6465706f7369745f6f725f61626f72742102810000000022000020200022010121020c0a746578742f706c61696e2200010c04746573742022002201012101200740b2f028fb4e2e130a9480d253a7709839980a7ed5e91394825115795d3f5b688e9472521295f90ae840e64bb82b9d086d9127bf2e53be55f0ee13775148defb09'
+    await client.broadcastTx(transactionHex)
+    expect(client.radixClient.gatewayClient.transaction.innerClient.transactionSubmit).toBeCalledTimes(1)
+  })
 })

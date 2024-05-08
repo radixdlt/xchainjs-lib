@@ -12,7 +12,14 @@ export const STOKENET_GATEWAY_URL = 'https://stokenet.radixdlt.com'
 
 export const XRD_DECIMAL = 18
 
-export const XrdAsset: Asset = {
+export const XrdAssetMainnet: Asset = {
+  symbol: 'resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc',
+  ticker: 'XRD',
+  synth: false,
+  chain: RadixChain,
+}
+
+export const XrdAssetStokenet: Asset = {
   symbol: 'resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc',
   ticker: 'XRD',
   synth: false,
@@ -27,6 +34,12 @@ export const xrdRootDerivationPaths: RootDerivationPaths = {
 
 export const bech32Networks: { [key: number]: string } = {
   1: 'rdx',
-  2: 'stk',
-  3: 'stk',
+  2: 'tdx',
+  3: 'tdx',
+}
+
+export const bech32Lengths: { [key: number]: number } = {
+  1: 66,
+  2: 69,
+  3: 69,
 }
