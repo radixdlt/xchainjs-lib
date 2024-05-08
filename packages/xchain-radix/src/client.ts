@@ -54,6 +54,24 @@ import {
   xrdRootDerivationPaths,
 } from './const'
 
+const xChainJsNetworkToRadixNetworkId = (network: Network): number => {
+  switch (network) {
+    case Network.Mainnet:
+    case Network.Stagenet:
+      return NetworkId.Mainnet
+    case Network.Testnet:
+      return NetworkId.Stokenet
+  }
+}
+
+const gatewayClient = (network: Network): GatewayApiClient => {
+  const applicationName = 'xchainjs'
+  return GatewayApiClient.initialize({
+    networkId: xChainJsNetworkToRadixNetworkId(network),
+    applicationName,
+  })
+}
+
 /**
  * Custom Radix client
  */
@@ -80,10 +98,12 @@ export default class Client extends BaseXChainClient {
       feeBounds: feeBounds,
     })
     this.curve = curve
-    this.gatewayApiClient = GatewayApiClient.initialize({
-      networkId: this.getRadixNetwork(),
-      applicationName: 'xchainjs',
-    })
+    this.gatewayApiClient = gatewayClient(network)
+  }
+
+  setNetwork(network: Network): void {
+    super.setNetwork(network)
+    this.gatewayApiClient = gatewayClient(network)
   }
 
   /**
@@ -162,23 +182,7 @@ export default class Client extends BaseXChainClient {
   }
 
   getRadixNetwork(): number {
-    const network = this.getNetwork()
-    let networkId: number
-    switch (network) {
-      case Network.Mainnet:
-        networkId = NetworkId.Mainnet
-        break
-      case Network.Testnet:
-        networkId = NetworkId.Kisharnet
-        break
-      case Network.Stagenet:
-        networkId = NetworkId.Stokenet
-        break
-      default:
-        networkId = NetworkId.Stokenet
-        break
-    }
-    return networkId
+    return xChainJsNetworkToRadixNetworkId(this.getNetwork())
   }
 
   getPrivateKey(): Buffer {
