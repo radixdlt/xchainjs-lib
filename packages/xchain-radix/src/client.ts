@@ -48,11 +48,12 @@ import {
 } from '@xchainjs/xchain-client'
 import { getSeed } from '@xchainjs/xchain-crypto/lib'
 import { Address, Asset, baseAmount } from '@xchainjs/xchain-util'
+import { bech32m } from 'bech32'
 import BIP32Factory, { BIP32Interface } from 'bip32'
 import { derivePath } from 'ed25519-hd-key'
 import * as ecc from 'tiny-secp256k1'
 // eslint-disable-next-line ordered-imports/ordered-imports
-import { RadixChain, XRD_DECIMAL, XrdAsset, xrdRootDerivationPaths } from './const'
+import { RadixChain, XRD_DECIMAL, XrdAsset, bech32Networks, xrdRootDerivationPaths } from './const'
 
 const xChainJsNetworkToRadixNetworkId = (network: Network): number => {
   switch (network) {
@@ -137,9 +138,12 @@ export class RadixSpecificClient {
       nonce,
       notaryPublicKey,
     )
-    const previewReceipt = (await this.previewIntent(intentWithHardcodedFee)) as PartialTransactionPreviewResponse
 
+    const previewReceipt = (await this.previewIntent(intentWithHardcodedFee)) as PartialTransactionPreviewResponse
     // Ensure that the preview was successful.
+
+    console.log(previewReceipt)
+
     if (previewReceipt.receipt.status !== 'Succeeded') {
       throw new Error('Preview for fees was not successful')
     }
@@ -265,6 +269,7 @@ export class RadixSpecificClient {
         },
       },
     }
+    console.log(request)
     return this.innerGatewayClient.transaction.innerClient.transactionPreview(request)
   }
 
@@ -314,6 +319,10 @@ export default class Client extends BaseXChainClient {
     this.radixSpecificClient = new RadixSpecificClient(xChainJsNetworkToRadixNetworkId(network))
   }
 
+  public get radixClient(): RadixSpecificClient {
+    return this.radixSpecificClient
+  }
+
   setNetwork(network: Network): void {
     super.setNetwork(network)
     this.radixSpecificClient.networkId = xChainJsNetworkToRadixNetworkId(network)
@@ -328,6 +337,7 @@ export default class Client extends BaseXChainClient {
   async getFees(): Promise<Fees> {
     // TODO: This can fail if we use it on stokenet, we need to replace these with network aware
     // addresses.
+    console.log('Calling get fees')
     const feesInXrd = await this.radixSpecificClient
       .constructSimpleTransferIntent(
         'account_rdx16803fft0ppmre8cr48njz2mxr2ankuhn85k0r6yfhwapwe0qk0j2pg',
@@ -450,10 +460,27 @@ export default class Client extends BaseXChainClient {
     }
   }
 
-  validateAddress(): boolean {
-    throw new Error(
-      'validateAddress is synchronous and cannot retrieve addresses directly. Use getAddressAsync instead.',
-    )
+  validateAddress(address: string): boolean {
+    try {
+      const decodedAddress = bech32m.decode(address)
+
+      if (!decodedAddress.prefix.startsWith('account_')) {
+        return false
+      }
+
+      const network = decodedAddress.prefix.split('_')[1]
+      if (bech32Networks[this.getRadixNetwork()] !== network) {
+        return false
+      }
+
+      if (address.length !== 66) {
+        return false
+      }
+
+      return true
+    } catch (error) {
+      return false
+    }
   }
 
   /**
@@ -704,11 +731,10 @@ export default class Client extends BaseXChainClient {
       )
       .then((response) => response.intent)
 
-    return RadixEngineToolkit.Intent.compile(intent).then((compiledIntent) => {
-      return {
-        rawUnsignedTx: Convert.Uint8Array.toHexString(compiledIntent),
-      }
-    })
+    const compiledIntent = await RadixEngineToolkit.Intent.compile(intent)
+    return {
+      rawUnsignedTx: Convert.Uint8Array.toHexString(compiledIntent),
+    }
   }
 
   /**
