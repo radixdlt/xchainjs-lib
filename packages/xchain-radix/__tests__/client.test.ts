@@ -45,7 +45,7 @@ describe('RadixClient Test', () => {
     }
     const client = new Client(params, 'Secp256k1')
     const address: string = await client.getAddressAsync()
-    expect(address).toBe('account_rdx16yry7aw4h98vul6nn0svq6m82ne204cqxdk2rtqy7lphkgutwpamld')
+    expect(address).toBe('account_rdx16xmah09yu9p9ynrmuc8z3a206n02tsmmkdvlmnx3cgu4s9r59wsxt2')
   })
 
   it('client should throw an Error when using getAddress', () => {
@@ -224,7 +224,6 @@ describe('RadixClient Test', () => {
 
     const getCurrentMock = jest.fn().mockResolvedValue({ ledger_state: { epoch: 123 } } as GatewayStatusResponse)
     client.radixClient.gatewayClient.status.getCurrent = getCurrentMock
-
     const transactionPreviewResponseMock = jest.fn().mockResolvedValue(mockTransactionPreviewResponse)
     client.radixClient.gatewayClient.transaction.innerClient.transactionPreview = transactionPreviewResponseMock
 

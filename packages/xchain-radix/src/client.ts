@@ -60,6 +60,7 @@ import {
   XrdAssetStokenet,
   bech32Lengths,
   bech32Networks,
+  feesEstimationPublicKeys,
   xrdRootDerivationPaths,
 } from './const'
 
@@ -309,8 +310,8 @@ export default class Client extends BaseXChainClient {
       phrase,
       rootDerivationPaths = xrdRootDerivationPaths,
       feeBounds = {
-        lower: 1,
-        upper: 1,
+        lower: 0,
+        upper: 3,
       },
     }: XChainClientParams,
     curve: Curve,
@@ -345,11 +346,13 @@ export default class Client extends BaseXChainClient {
     // addresses.
     const feesInXrd = await this.radixSpecificClient
       .constructSimpleTransferIntent(
-        'account_rdx16803fft0ppmre8cr48njz2mxr2ankuhn85k0r6yfhwapwe0qk0j2pg',
-        'account_rdx1685t40mreptjhs9g3pg9lgf7k7rgppzjeknjgrpc7d0sumcjrsw6kj',
-        'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
+        feesEstimationPublicKeys[this.getRadixNetwork()].from,
+        feesEstimationPublicKeys[this.getRadixNetwork()].to,
+        feesEstimationPublicKeys[this.getRadixNetwork()].resourceAddress,
         1,
-        this.getRadixPrivateKey().publicKey(),
+        new PublicKey.Ed25519(
+          Convert.HexString.toUint8Array(feesEstimationPublicKeys[this.getRadixNetwork()].publicKey),
+        ),
         '',
       )
       .then((result) => result.fees)
@@ -390,7 +393,7 @@ export default class Client extends BaseXChainClient {
   getRadixPrivateKey(): PrivateKey {
     const privateKey = this.getPrivateKey()
     const privateKeyBytes = Uint8Array.from(privateKey)
-    if (this.curve == 'Ed25519') {
+    if (this.curve === 'Ed25519') {
       return new PrivateKey.Ed25519(privateKeyBytes)
     } else {
       return new PrivateKey.Secp256k1(privateKeyBytes)
