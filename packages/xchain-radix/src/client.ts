@@ -1,24 +1,33 @@
 import {
   CommittedTransactionInfo,
   GatewayApiClient,
-  GatewayStatusResponse,
-  PublicKey,
+  PublicKey as GatewayPublicKey,
   StateEntityDetailsRequest,
   StateEntityDetailsResponse,
   TransactionCommittedDetailsRequest,
   TransactionCommittedDetailsResponse,
-  TransactionPreviewRequest,
+  TransactionPreviewOperationRequest,
   TransactionPreviewResponse,
+  TransactionSubmitResponse,
 } from '@radixdlt/babylon-gateway-api-sdk'
 import {
   Convert,
   Curve,
+  Intent,
   LTSRadixEngineToolkit,
+  ManifestBuilder,
+  Message,
   NetworkId,
+  NotarizedTransaction,
   PrivateKey,
+  PublicKey,
   RadixEngineToolkit,
   TransactionBuilder,
+  TransactionHash,
   TransactionManifest,
+  address,
+  bucket,
+  decimal,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit'
 import {
@@ -39,20 +48,11 @@ import {
 } from '@xchainjs/xchain-client'
 import { getSeed } from '@xchainjs/xchain-crypto/lib'
 import { Address, Asset, baseAmount } from '@xchainjs/xchain-util'
-import { bech32m } from 'bech32'
 import BIP32Factory, { BIP32Interface } from 'bip32'
 import { derivePath } from 'ed25519-hd-key'
 import * as ecc from 'tiny-secp256k1'
 // eslint-disable-next-line ordered-imports/ordered-imports
-import {
-  MAINNET_GATEWAY_URL,
-  RadixChain,
-  STOKENET_GATEWAY_URL,
-  XRD_DECIMAL,
-  XrdAsset,
-  bech32Networks,
-  xrdRootDerivationPaths,
-} from './const'
+import { RadixChain, XRD_DECIMAL, XrdAsset, xrdRootDerivationPaths } from './const'
 
 const xChainJsNetworkToRadixNetworkId = (network: Network): number => {
   switch (network) {
@@ -64,12 +64,225 @@ const xChainJsNetworkToRadixNetworkId = (network: Network): number => {
   }
 }
 
-const gatewayClient = (network: Network): GatewayApiClient => {
-  const applicationName = 'xchainjs'
-  return GatewayApiClient.initialize({
-    networkId: xChainJsNetworkToRadixNetworkId(network),
-    applicationName,
-  })
+type PartialTransactionPreviewResponse = {
+  receipt: {
+    status: 'Succeeded' | 'Failed' | 'Rejected'
+    fee_summary: {
+      execution_cost_units_consumed: number
+      finalization_cost_units_consumed: number
+      xrd_total_execution_cost: string
+      xrd_total_finalization_cost: string
+      xrd_total_royalty_cost: string
+      xrd_total_storage_cost: string
+      xrd_total_tipping_cost: string
+    }
+  }
+}
+
+/**
+ * The main client for the Radix network which is then wrapped by the {Client} adapting it to have
+ * a {BaseXChainClient} interface.
+ */
+export class RadixSpecificClient {
+  private innerNetwork: number
+  private innerGatewayClient: GatewayApiClient
+
+  constructor(networkId: number) {
+    this.innerNetwork = networkId
+    this.innerGatewayClient = RadixSpecificClient.createGatewayClient(networkId)
+  }
+
+  // #region Getters & Setters
+  public set networkId(networkId: number) {
+    this.innerNetwork = networkId
+    this.innerGatewayClient = RadixSpecificClient.createGatewayClient(networkId)
+  }
+
+  public get networkId(): number {
+    return this.innerNetwork
+  }
+
+  public get gatewayClient(): GatewayApiClient {
+    return this.innerGatewayClient
+  }
+  // #endregion
+
+  // #region Public Methods
+  public async currentEpoch(): Promise<number> {
+    return this.innerGatewayClient.status.getCurrent().then((status) => status.ledger_state.epoch)
+  }
+
+  public async constructSimpleTransferIntent(
+    from: string,
+    to: string,
+    resourceAddress: string,
+    amount: number,
+    notaryPublicKey: PublicKey,
+    message?: string,
+  ): Promise<{ intent: Intent; fees: number }> {
+    // This nonce will be used for preview and also when constructing the final transaction
+    const nonce = generateRandomNonce()
+
+    // Construct the intent with a random fee lock, say 5 XRD and then create a transaction intent
+    // from it.
+    const manifestWithHardcodedFee = RadixSpecificClient.simpleTransferManifest(from, to, resourceAddress, amount, 5)
+    const intentWithHardcodedFee = await this.constructIntent(
+      manifestWithHardcodedFee,
+      message === null
+        ? { kind: 'None' }
+        : {
+            kind: 'PlainText',
+            value: { mimeType: 'text/plain', message: { kind: 'String', value: message as string } },
+          },
+      nonce,
+      notaryPublicKey,
+    )
+    const previewReceipt = (await this.previewIntent(intentWithHardcodedFee)) as PartialTransactionPreviewResponse
+
+    // Ensure that the preview was successful.
+    if (previewReceipt.receipt.status !== 'Succeeded') {
+      throw new Error('Preview for fees was not successful')
+    }
+
+    // Calculate the total fees
+    const totalFees = [
+      previewReceipt.receipt.fee_summary.xrd_total_execution_cost,
+      previewReceipt.receipt.fee_summary.xrd_total_finalization_cost,
+      previewReceipt.receipt.fee_summary.xrd_total_royalty_cost,
+      previewReceipt.receipt.fee_summary.xrd_total_storage_cost,
+      previewReceipt.receipt.fee_summary.xrd_total_tipping_cost,
+    ]
+      .map(parseFloat)
+      .reduce((acc, item) => acc + item, 0)
+
+    // Construct a new intent with the calculated fees.
+    const manifest = RadixSpecificClient.simpleTransferManifest(from, to, resourceAddress, amount, totalFees)
+    const intent = await this.constructIntent(
+      manifest,
+      message === null
+        ? { kind: 'None' }
+        : {
+            kind: 'PlainText',
+            value: { mimeType: 'text/plain', message: { kind: 'String', value: message as string } },
+          },
+      nonce,
+      notaryPublicKey,
+    )
+
+    return {
+      intent,
+      fees: totalFees,
+    }
+  }
+
+  public async submitTransaction(
+    notarizedTransaction: NotarizedTransaction,
+  ): Promise<[TransactionSubmitResponse, TransactionHash]> {
+    const intentHash = await RadixEngineToolkit.NotarizedTransaction.intentHash(notarizedTransaction)
+    return RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
+      .then(Convert.Uint8Array.toHexString)
+      .then((transactionHex) =>
+        this.innerGatewayClient.transaction.innerClient.transactionSubmit({
+          transactionSubmitRequest: { notarized_transaction_hex: transactionHex },
+        }),
+      )
+      .then((response) => [response, intentHash])
+  }
+  // #endregion Public Methods
+
+  // #region Private Methods
+  private static createGatewayClient(network: number): GatewayApiClient {
+    const applicationName = 'xchainjs'
+    return GatewayApiClient.initialize({
+      networkId: network,
+      applicationName,
+    })
+  }
+
+  private static simpleTransferManifest(
+    from: string,
+    to: string,
+    resourceAddress: string,
+    amount: number,
+    amountToLockForFees: number,
+  ): TransactionManifest {
+    return new ManifestBuilder()
+      .callMethod(from, 'lock_fee_and_withdraw', [
+        decimal(amountToLockForFees),
+        address(resourceAddress),
+        decimal(amount),
+      ])
+      .takeFromWorktop(resourceAddress, decimal(amount).value, (builder, bucketId) => {
+        return builder.callMethod(to, 'try_deposit_or_abort', [bucket(bucketId)])
+      })
+      .build()
+  }
+
+  private async constructIntent(
+    manifest: TransactionManifest,
+    message: Message,
+    nonce: number,
+    notaryPublicKey: PublicKey,
+  ): Promise<Intent> {
+    const epoch = await this.currentEpoch()
+    return {
+      header: {
+        networkId: this.networkId,
+        startEpochInclusive: epoch,
+        endEpochExclusive: epoch + 10,
+        nonce,
+        notaryPublicKey,
+        notaryIsSignatory: true,
+        tipPercentage: 0,
+      },
+      manifest,
+      message,
+    }
+  }
+
+  private async previewIntent(intent: Intent): Promise<TransactionPreviewResponse> {
+    // Translate the RET models to the gateway models for preview.
+    const request: TransactionPreviewOperationRequest = {
+      transactionPreviewRequest: {
+        manifest: await RadixEngineToolkit.Instructions.convert(
+          intent.manifest.instructions,
+          this.networkId,
+          'String',
+        ).then((instructions) => instructions.value as string),
+        blobs_hex: [],
+        start_epoch_inclusive: intent.header.startEpochInclusive,
+        end_epoch_exclusive: intent.header.endEpochExclusive,
+        notary_public_key: RadixSpecificClient.retPublicKeyToGatewayPublicKey(intent.header.notaryPublicKey),
+        notary_is_signatory: intent.header.notaryIsSignatory,
+        tip_percentage: intent.header.tipPercentage,
+        nonce: intent.header.nonce,
+        signer_public_keys: [],
+        // TODO: Add message
+        flags: {
+          assume_all_signature_proofs: false,
+          skip_epoch_check: false,
+          use_free_credit: false,
+        },
+      },
+    }
+    return this.innerGatewayClient.transaction.innerClient.transactionPreview(request)
+  }
+
+  private static retPublicKeyToGatewayPublicKey(publicKey: PublicKey): GatewayPublicKey {
+    switch (publicKey.curve) {
+      case 'Secp256k1':
+        return {
+          key_type: 'EcdsaSecp256k1',
+          key_hex: publicKey.hex(),
+        }
+      case 'Ed25519':
+        return {
+          key_type: 'EddsaEd25519',
+          key_hex: publicKey.hex(),
+        }
+    }
+  }
+  // #endregion Private Methods
 }
 
 /**
@@ -77,8 +290,8 @@ const gatewayClient = (network: Network): GatewayApiClient => {
  */
 
 export default class Client extends BaseXChainClient {
-  gatewayApiClient: GatewayApiClient
-  curve: Curve
+  private radixSpecificClient: RadixSpecificClient
+  private curve: Curve
   constructor(
     {
       network = Network.Mainnet,
@@ -98,12 +311,12 @@ export default class Client extends BaseXChainClient {
       feeBounds: feeBounds,
     })
     this.curve = curve
-    this.gatewayApiClient = gatewayClient(network)
+    this.radixSpecificClient = new RadixSpecificClient(xChainJsNetworkToRadixNetworkId(network))
   }
 
   setNetwork(network: Network): void {
     super.setNetwork(network)
-    this.gatewayApiClient = gatewayClient(network)
+    this.radixSpecificClient.networkId = xChainJsNetworkToRadixNetworkId(network)
   }
 
   /**
@@ -113,72 +326,24 @@ export default class Client extends BaseXChainClient {
    * @returns {Fee} An estimated fee
    */
   async getFees(): Promise<Fees> {
-    try {
-      const txParams: TxParams = {
-        asset: XrdAsset,
-        amount: baseAmount(1),
-        recipient: 'account_rdx1685t40mreptjhs9g3pg9lgf7k7rgppzjeknjgrpc7d0sumcjrsw6kj',
-      }
-
-      this.curve
-
-      const publicKey: PublicKey = {
-        key_hex: this.getRadixPrivateKey().publicKey().hexString(),
-        key_type: this.curve === 'Secp256k1' ? 'EcdsaSecp256k1' : 'EddsaEd25519',
-      }
-      const txManifest = this.prepareTx(txParams)
-      const gatewayStatusResponse: GatewayStatusResponse = await this.gatewayApiClient.status.getCurrent()
-      const transactionPreviewRequest: TransactionPreviewRequest = {
-        manifest: (await txManifest).rawUnsignedTx,
-        start_epoch_inclusive: gatewayStatusResponse.ledger_state.epoch,
-        end_epoch_exclusive: gatewayStatusResponse.ledger_state.epoch + 10,
-        tip_percentage: 10,
-        nonce: generateRandomNonce(),
-        notary_is_signatory: true,
-        notary_public_key: publicKey,
-        flags: {
-          use_free_credit: false,
-          assume_all_signature_proofs: false,
-          skip_epoch_check: true,
-        },
-        signer_public_keys: [],
-      }
-      const transactionPreviewResponse: TransactionPreviewResponse =
-        await this.gatewayApiClient.transaction.innerClient.transactionPreview({
-          transactionPreviewRequest: transactionPreviewRequest,
-        })
-      const receipt = transactionPreviewResponse.receipt as {
-        status: string
-        fee_summary: {
-          execution_cost_units_consumed: number
-          finalization_cost_units_consumed: number
-          xrd_total_execution_cost: string
-          xrd_total_finalization_cost: string
-          xrd_total_royalty_cost: string
-          xrd_total_storage_cost: string
-          xrd_total_tipping_cost: string
-        }
-      }
-
-      if (receipt.status !== 'Rejected') {
-        const totalFees =
-          parseFloat(receipt.fee_summary.xrd_total_execution_cost) +
-          parseFloat(receipt.fee_summary.xrd_total_finalization_cost) +
-          parseFloat(receipt.fee_summary.xrd_total_royalty_cost) +
-          parseFloat(receipt.fee_summary.xrd_total_storage_cost) +
-          parseFloat(receipt.fee_summary.xrd_total_tipping_cost)
-        const decimalDiff = XRD_DECIMAL - 8
-        // Adjust the fee rate to match radix decimal precision
-        const feeRate1e18 = totalFees * 10 ** decimalDiff
-        // Create the fee amount with the adjusted fee rate
-        const fee = baseAmount(feeRate1e18, XRD_DECIMAL)
-        return singleFee(FeeType.FlatFee, fee)
-      } else {
-        throw new Error('Preview transaction was Rejected')
-      }
-    } catch (error) {
-      throw new Error('Failed to calculate the fees')
-    }
+    // TODO: This can fail if we use it on stokenet, we need to replace these with network aware
+    // addresses.
+    const feesInXrd = await this.radixSpecificClient
+      .constructSimpleTransferIntent(
+        'account_rdx16803fft0ppmre8cr48njz2mxr2ankuhn85k0r6yfhwapwe0qk0j2pg',
+        'account_rdx1685t40mreptjhs9g3pg9lgf7k7rgppzjeknjgrpc7d0sumcjrsw6kj',
+        'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
+        1,
+        this.getRadixPrivateKey().publicKey(),
+        '',
+      )
+      .then((result) => result.fees)
+    const decimalDiff = XRD_DECIMAL - 8
+    // Adjust the fee rate to match radix decimal precision
+    const feeRate1e18 = feesInXrd * 10 ** decimalDiff
+    // Create the fee amount with the adjusted fee rate
+    const fee = baseAmount(feeRate1e18, XRD_DECIMAL)
+    return singleFee(FeeType.FlatFee, fee)
   }
 
   getRadixNetwork(): number {
@@ -254,22 +419,6 @@ export default class Client extends BaseXChainClient {
   }
 
   /**
-   * Get the Gateway URL based on the network.
-   *
-   * @returns {string} The explorer URL based on the network.
-   */
-  getGatewayUrl(): string {
-    switch (this.getRadixNetwork()) {
-      case NetworkId.Mainnet:
-        return MAINNET_GATEWAY_URL
-      case NetworkId.Stokenet:
-        return STOKENET_GATEWAY_URL
-      default:
-        throw new Error('Unsupported network')
-    }
-  }
-
-  /**
    * Get the explorer URL for a given account address based on the network.
    * @param {Address} address The address to generate the explorer URL for.
    * @returns {string} The explorer URL for the given address.
@@ -294,23 +443,9 @@ export default class Client extends BaseXChainClient {
    */
   async validateAddressAsync(address: string): Promise<boolean> {
     try {
-      const decodedAddress = bech32m.decode(address)
-
-      if (!decodedAddress.prefix.startsWith('account_')) {
-        return false
-      }
-
-      const network = decodedAddress.prefix.split('_')[1]
-      if (bech32Networks[this.getRadixNetwork()] !== network) {
-        return false
-      }
-
-      if (address.length !== 66) {
-        return false
-      }
-
+      await RadixEngineToolkit.Address.decode(address)
       return true
-    } catch (error) {
+    } catch {
       return false
     }
   }
@@ -344,7 +479,7 @@ export default class Client extends BaseXChainClient {
     }
     try {
       const stateEntityDetailsResponse: StateEntityDetailsResponse =
-        await this.gatewayApiClient.state.innerClient.stateEntityDetails({
+        await this.radixSpecificClient.gatewayClient.state.innerClient.stateEntityDetails({
           stateEntityDetailsRequest: stateEntityDetailsRequest,
         })
       return stateEntityDetailsResponse.items.flatMap((item: any) => {
@@ -388,7 +523,7 @@ export default class Client extends BaseXChainClient {
     const txList: TxsPage = { txs: [], total: 0 }
 
     while (hasNextPage) {
-      const response = await this.gatewayApiClient.stream.innerClient.streamTransactions({
+      const response = await this.radixSpecificClient.gatewayClient.stream.innerClient.streamTransactions({
         streamTransactionsRequest: {
           affected_global_entities_filter: [params.address],
           limit_per_page: params.limit && params.limit > 100 ? 100 : params.limit,
@@ -442,7 +577,7 @@ export default class Client extends BaseXChainClient {
         },
       }
       const transactionCommittedDetailsResponse: TransactionCommittedDetailsResponse =
-        await this.gatewayApiClient.transaction.innerClient.transactionCommittedDetails({
+        await this.radixSpecificClient.gatewayClient.transaction.innerClient.transactionCommittedDetails({
           transactionCommittedDetailsRequest: transactionCommittedDetailsRequest,
         })
       if (
@@ -520,66 +655,34 @@ export default class Client extends BaseXChainClient {
    * @param params - The transactions params
    * @returns A signed transaction hex
    */
-  async transfer(params: TxParams, broadcastTx = true): Promise<string> {
-    const networkId = this.getRadixNetwork()
-    const radixPrivateKey = this.getRadixPrivateKey()
+  async transfer(params: TxParams): Promise<string> {
+    const intent = await this.prepareTx(params)
+      .then((response) => response.rawUnsignedTx)
+      .then(Convert.HexString.toUint8Array)
+      .then(RadixEngineToolkit.Intent.decompile)
 
-    if (params.asset == undefined) {
-      params.asset = XrdAsset
-    }
+    const notarizedTransaction = await TransactionBuilder.new().then((builder) => {
+      return builder
+        .header(intent.header)
+        .message(intent.message)
+        .manifest(intent.manifest)
+        .notarize(this.getRadixPrivateKey())
+    })
 
-    const preparedTransaction = await this.prepareTx(params)
-    const compiledTransactionManifest = await Convert.HexString.toUint8Array(preparedTransaction.rawUnsignedTx)
-    const transactionManifest = await RadixEngineToolkit.TransactionManifest.decompile(
-      compiledTransactionManifest,
-      networkId,
-    )
-    try {
-      const gatewayStatusResponse: GatewayStatusResponse = await this.gatewayApiClient.status.getCurrent()
-      const notarizedTransaction = await TransactionBuilder.new().then((builder) =>
-        builder
-          .header({
-            networkId: networkId,
-            startEpochInclusive: gatewayStatusResponse.ledger_state.epoch,
-            endEpochExclusive: gatewayStatusResponse.ledger_state.epoch + 10,
-            nonce: generateRandomNonce(),
-            notaryPublicKey: radixPrivateKey.publicKey(),
-            notaryIsSignatory: true,
-            tipPercentage: 0,
-          })
-          .plainTextMessage(params.memo ? params.memo : '')
-          .manifest(transactionManifest)
-          .notarize(radixPrivateKey),
-      )
-
-      const compiledTransaction = await RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
-      const compiledTransactionHex = Convert.Uint8Array.toHexString(compiledTransaction)
-
-      if (broadcastTx) {
-        await this.broadcastTx(compiledTransactionHex)
-      }
-      const transactionId = await RadixEngineToolkit.NotarizedTransaction.intentHash(notarizedTransaction)
-      return transactionId.id
-    } catch (error) {
-      throw new Error('Failed to transfer')
-    }
+    return RadixEngineToolkit.NotarizedTransaction.compile(notarizedTransaction)
+      .then(Convert.Uint8Array.toHexString)
+      .then(this.broadcastTx)
   }
+
   /**
    * Submits a transaction
    * @param txHex - The transaction hex build with the transfer method
    * @returns - The response from the gateway
    */
   async broadcastTx(txHex: string): Promise<string> {
-    await this.gatewayApiClient.transaction.innerClient.transactionSubmit({
-      transactionSubmitRequest: {
-        notarized_transaction_hex: txHex,
-      },
-    })
-    const notarizedTransaction = await RadixEngineToolkit.NotarizedTransaction.decompile(
-      Convert.HexString.toUint8Array(txHex),
-    )
-    const intentHash = await RadixEngineToolkit.NotarizedTransaction.intentHash(notarizedTransaction)
-    return Convert.Uint8Array.toHexString(intentHash.hash)
+    return RadixEngineToolkit.NotarizedTransaction.decompile(Convert.HexString.toUint8Array(txHex))
+      .then(this.radixSpecificClient.submitTransaction)
+      .then((response) => response[1].id)
   }
 
   /**
@@ -589,46 +692,23 @@ export default class Client extends BaseXChainClient {
    * @returns a PreparedTx
    */
   async prepareTx(params: TxParams): Promise<PreparedTx> {
-    if (params.asset == undefined) {
-      params.asset = XrdAsset
-    }
-    const fromAddress = await this.getAddressAsync()
-    const stringManifest = `
-    CALL_METHOD
-      Address("${fromAddress}")
-      "lock_fee"
-      Decimal("${this.feeBounds.upper}");
-    CALL_METHOD
-      Address("${fromAddress}")
-      "withdraw"
-      Address("${params.asset.symbol}")
-      Decimal("${params.amount.amount()}");
-    TAKE_FROM_WORKTOP
-      Address("${params.asset.symbol}")
-      Decimal("${params.amount.amount()}")
-      Bucket("xrd_payment");
-    CALL_METHOD
-      Address("${params.recipient}")
-      "try_deposit_or_abort"
-      Bucket("xrd_payment")
-      None;
-    `
+    const from = await this.getAddressAsync()
+    const intent = await this.radixSpecificClient
+      .constructSimpleTransferIntent(
+        from,
+        params.recipient,
+        (params.asset ?? XrdAsset).symbol,
+        params.amount.amount().toNumber(),
+        this.getRadixPrivateKey().publicKey(),
+        params.memo,
+      )
+      .then((response) => response.intent)
 
-    const transactionsManifest = {
-      instructions: { kind: 'String', value: stringManifest },
-      blobs: [],
-    } as TransactionManifest
-    const networkId = this.getRadixNetwork()
-    try {
-      const transactionIntent = await RadixEngineToolkit.TransactionManifest.compile(transactionsManifest, networkId)
-      const transactionIntentHex = await Convert.Uint8Array.toHexString(transactionIntent)
-      const preparedTx = {
-        rawUnsignedTx: transactionIntentHex,
+    return RadixEngineToolkit.Intent.compile(intent).then((compiledIntent) => {
+      return {
+        rawUnsignedTx: Convert.Uint8Array.toHexString(compiledIntent),
       }
-      return preparedTx
-    } catch (error) {
-      throw new Error('Failed to transfer')
-    }
+    })
   }
 
   /**
@@ -642,5 +722,3 @@ export default class Client extends BaseXChainClient {
     }
   }
 }
-
-export { Client }
