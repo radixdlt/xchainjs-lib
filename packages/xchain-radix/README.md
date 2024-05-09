@@ -111,7 +111,7 @@ const params: XChainClientParams = {
   network: Network.Mainnet,
   phrase: phrase,
 }
-const radixClient = new Client(params)
+const client = new Client(params, 'Ed25519')
 
 const txParams: TxParams = {
   asset: XrdAsset,
@@ -132,10 +132,10 @@ import { Asset } from '@xchainjs/xchain-util/lib'
 
 const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
 const params: XChainClientParams = {
-  network: Network.Mainnet,
+  network: Network.Testnet,
   phrase: phrase,
+  feeBounds: { lower: 1, upper: 5 },
 }
-const radixClient = new Client(params)
 const assets: Asset[] = [
   {
     symbol: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
@@ -159,10 +159,11 @@ import { Client } from '@xchainjs/xchain-radix'
 
 const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
 const params: XChainClientParams = {
-  network: Network.Mainnet,
+  network: Network.Testnet,
   phrase: phrase,
+  feeBounds: { lower: 1, upper: 5 },
 }
-const radixClient = new Client(params)
+const client = new Client(params, 'Ed25519')
 const fees: Fees = await radixClient.getFees()
 console.log(fees)
 ```
@@ -175,10 +176,12 @@ import { Client } from '@xchainjs/xchain-radix'
 
 const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
 const params: XChainClientParams = {
-  network: Network.Mainnet,
+  network: Network.Testnet,
   phrase: phrase,
+  feeBounds: { lower: 1, upper: 5 },
 }
-const radixClient = new Client(params)
+const client = new Client(params, 'Ed25519')
+
 const transactionsHistoryParams = {
   address: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
   offset: 72533720,
