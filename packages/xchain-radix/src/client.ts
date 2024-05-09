@@ -1,9 +1,13 @@
 import {
   CommittedTransactionInfo,
+  FungibleResourcesCollectionItem,
   GatewayApiClient,
+  NonFungibleResourcesCollectionItem,
   PublicKey as GatewayPublicKey,
-  StateEntityDetailsRequest,
-  StateEntityDetailsResponse,
+  StateEntityFungiblesPageRequest,
+  StateEntityFungiblesPageResponse,
+  StateEntityNonFungiblesPageRequest,
+  StateEntityNonFungiblesPageResponse,
   TransactionCommittedDetailsRequest,
   TransactionCommittedDetailsResponse,
   TransactionPreviewOperationRequest,
@@ -122,6 +126,112 @@ export class RadixSpecificClient {
   // #region Public Methods
   public async currentEpoch(): Promise<number> {
     return this.innerGatewayClient.status.getCurrent().then((status) => status.ledger_state.epoch)
+  }
+
+  public async currentStateVersion(): Promise<number> {
+    return this.innerGatewayClient.status.getCurrent().then((status) => status.ledger_state.state_version)
+  }
+
+  public async fetchBalances(address: string): Promise<Balance[]> {
+    const fungibleResources = await this.fetchFungibleResources(address)
+    const nonFungibleResources = await this.fetchNonFungibleResources(address)
+    const fungibleBalances = this.convertResourcesToBalances(fungibleResources)
+    const nonFungibleBalances = this.convertResourcesToBalances(nonFungibleResources)
+    return fungibleBalances.concat(nonFungibleBalances)
+  }
+
+  private convertResourcesToBalances(
+    resources: FungibleResourcesCollectionItem[] | NonFungibleResourcesCollectionItem[],
+  ): Balance[] {
+    const balances: Balance[] = []
+    // Iterate through nonFungibleResources
+    const decimalDiff = XRD_DECIMAL - 8
+    resources.forEach((item) => {
+      if (item.aggregation_level === 'Global') {
+        const asset: Asset = {
+          chain: RadixChain,
+          symbol: item.resource_address,
+          ticker: item.resource_address,
+          synth: false,
+        }
+
+        // We need to do this because item.amount can be either string or number
+        // depending on the type of resource
+        let xrdAmount: number
+        if (typeof item.amount === 'string') {
+          xrdAmount = parseFloat(item.amount) * 10 ** decimalDiff
+        } else {
+          xrdAmount = item.amount * 10 ** decimalDiff
+        }
+
+        const balance: Balance = {
+          asset: asset,
+          amount: baseAmount(xrdAmount, XRD_DECIMAL),
+        }
+        balances.push(balance)
+      }
+    })
+    return balances
+  }
+
+  private async fetchNonFungibleResources(address: string): Promise<NonFungibleResourcesCollectionItem[]> {
+    let hasNextPage = true
+    let nextCursor = undefined
+    const stateVersion = await this.currentStateVersion()
+    let nonFungibleResources: NonFungibleResourcesCollectionItem[] = []
+
+    while (hasNextPage) {
+      const stateEntityNonFungiblesPageRequest: StateEntityNonFungiblesPageRequest = {
+        address: address,
+        limit_per_page: 5,
+        cursor: nextCursor,
+        at_ledger_state: {
+          state_version: stateVersion,
+        },
+      }
+
+      const stateEntityNonFungiblesPageResponse: StateEntityNonFungiblesPageResponse =
+        await this.gatewayClient.state.innerClient.entityNonFungiblesPage({
+          stateEntityNonFungiblesPageRequest: stateEntityNonFungiblesPageRequest,
+        })
+      nonFungibleResources = nonFungibleResources.concat(stateEntityNonFungiblesPageResponse.items)
+      if (stateEntityNonFungiblesPageResponse.next_cursor) {
+        nextCursor = stateEntityNonFungiblesPageResponse.next_cursor
+      } else {
+        hasNextPage = false
+      }
+    }
+    return nonFungibleResources
+  }
+
+  private async fetchFungibleResources(address: string): Promise<FungibleResourcesCollectionItem[]> {
+    let hasNextPage = true
+    let nextCursor = undefined
+    let fungibleResources: FungibleResourcesCollectionItem[] = []
+    const stateVersion = await this.currentStateVersion()
+    while (hasNextPage) {
+      const stateEntityFungiblesPageRequest: StateEntityFungiblesPageRequest = {
+        address: address,
+        limit_per_page: 100,
+        cursor: nextCursor,
+        at_ledger_state: {
+          state_version: stateVersion,
+        },
+      }
+
+      const stateEntityFungiblesPageResponse: StateEntityFungiblesPageResponse =
+        await this.gatewayClient.state.innerClient.entityFungiblesPage({
+          stateEntityFungiblesPageRequest: stateEntityFungiblesPageRequest,
+        })
+
+      fungibleResources = fungibleResources.concat(stateEntityFungiblesPageResponse.items)
+      if (stateEntityFungiblesPageResponse.next_cursor) {
+        nextCursor = stateEntityFungiblesPageResponse.next_cursor
+      } else {
+        hasNextPage = false
+      }
+    }
+    return fungibleResources
   }
 
   public async constructSimpleTransferIntent(
@@ -519,42 +629,11 @@ export default class Client extends BaseXChainClient {
    * @returns {Promise<Balance[]>} An array containing the balance of the address.
    */
   async getBalance(address: Address, assets: Asset[]): Promise<Balance[]> {
-    const stateEntityDetailsRequest: StateEntityDetailsRequest = {
-      addresses: [address],
-      aggregation_level: 'Global',
-    }
-    try {
-      const stateEntityDetailsResponse: StateEntityDetailsResponse =
-        await this.radixSpecificClient.gatewayClient.state.innerClient.stateEntityDetails({
-          stateEntityDetailsRequest: stateEntityDetailsRequest,
-        })
-      return stateEntityDetailsResponse.items.flatMap((item: any) => {
-        const balances: Balance[] = []
-        // Check for fungible_resources
-        if (item.fungible_resources && item.fungible_resources.items) {
-          const fungibleBalances = item.fungible_resources.items
-            .filter((resource: any) => this.filterByAssets(resource, assets))
-            .map((resource: any) => ({
-              asset: { symbol: resource.resource_address },
-              amount: baseAmount(resource.amount),
-            }))
-          balances.push(...fungibleBalances)
-        }
-        // Check for non_fungible_resources
-        if (item.non_fungible_resources && item.non_fungible_resources.items) {
-          const nonFungibleBalances = item.non_fungible_resources.items
-            .filter((resource: any) => this.filterByAssets(resource, assets))
-            .map((resource: any) => ({
-              asset: { symbol: resource.resource_address },
-              amount: baseAmount(resource.amount),
-            }))
-          balances.push(...nonFungibleBalances)
-        }
-        return balances
-      })
-    } catch (error) {
-      throw new Error('Failed to calculate balance')
-    }
+    const balances: Balance[] = await this.radixSpecificClient.fetchBalances(address)
+    const filteredBalances: Balance[] = balances.filter((balance) =>
+      assets.some((asset) => balance.asset.symbol === asset.symbol),
+    )
+    return filteredBalances
   }
 
   /**

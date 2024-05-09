@@ -10,9 +10,10 @@ import { Balance, Fees, Network, Tx, TxParams, XChainClientParams } from '@xchai
 import { Asset, baseAmount } from '@xchainjs/xchain-util'
 import {
   mockCommittedDetailsResponse,
-  mockEntityDetailsResponse,
   mockStreamTransactionsResponse,
   mockTransactionPreviewResponse,
+  stateEntityFungiblesPageResponse,
+  stateEntityNonFungiblesPageResponse,
 } from '../__mocks__/mocks'
 import Client from '../src/client'
 import { XrdAssetStokenet } from '../src/const'
@@ -207,8 +208,12 @@ describe('RadixClient Test', () => {
 
   it('client should be able to get balances for an account', async () => {
     const client = createClient()
-    const entityDetailsResponseMock = jest.fn().mockResolvedValue(mockEntityDetailsResponse)
-    client.radixClient.gatewayClient.state.innerClient.stateEntityDetails = entityDetailsResponseMock
+    const stateEntityFungiblesPageResponseMock = jest.fn().mockResolvedValue(stateEntityFungiblesPageResponse)
+    client.radixClient.gatewayClient.state.innerClient.entityFungiblesPage = stateEntityFungiblesPageResponseMock
+
+    const stateEntityNonFungiblesPageResponseMock = jest.fn().mockResolvedValue(stateEntityNonFungiblesPageResponse)
+    client.radixClient.gatewayClient.state.innerClient.entityNonFungiblesPage = stateEntityNonFungiblesPageResponseMock
+
     const balances: Balance[] = await client.getBalance(
       'account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w',
       [],
@@ -218,10 +223,15 @@ describe('RadixClient Test', () => {
     })
   })
 
-  it('client should be able to get balances for an account with filtered assets', async () => {
+  it('client should be able to get filtered balances for an account', async () => {
     const client = createClient()
-    const entityDetailsResponseMock = jest.fn().mockResolvedValue(mockEntityDetailsResponse)
-    client.radixClient.gatewayClient.state.innerClient.stateEntityDetails = entityDetailsResponseMock
+
+    const stateEntityFungiblesPageResponseMock = jest.fn().mockResolvedValue(stateEntityFungiblesPageResponse)
+    client.radixClient.gatewayClient.state.innerClient.entityFungiblesPage = stateEntityFungiblesPageResponseMock
+
+    const stateEntityNonFungiblesPageResponseMock = jest.fn().mockResolvedValue(stateEntityNonFungiblesPageResponse)
+    client.radixClient.gatewayClient.state.innerClient.entityNonFungiblesPage = stateEntityNonFungiblesPageResponseMock
+
     const assets: Asset[] = [
       {
         symbol: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',

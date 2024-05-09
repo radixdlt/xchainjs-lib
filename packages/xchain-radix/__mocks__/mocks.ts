@@ -1,4 +1,277 @@
-import { StateEntityDetailsResponse, TransactionCommittedDetailsResponse } from '@radixdlt/babylon-gateway-api-sdk'
+import {
+  StateEntityDetailsResponse,
+  StateEntityFungiblesPageResponse,
+  StateEntityNonFungiblesPageResponse,
+  TransactionCommittedDetailsResponse,
+} from '@radixdlt/babylon-gateway-api-sdk'
+
+export const stateEntityNonFungiblesPageResponse: StateEntityNonFungiblesPageResponse = {
+  ledger_state: {
+    network: 'mainnet',
+    state_version: 81621336,
+    proposer_round_timestamp: '2024-05-09T16:32:42.806Z',
+    epoch: 97073,
+    round: 500,
+  },
+  total_count: 12,
+  items: [
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1nfjwgcljh2nhn5zzp3arc9whnp0p39u6unfmzmeqv9jhp206zkcfy6',
+      amount: 1,
+      last_updated_at_state_version: 79357936,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1ntvmy08hnz5ye090yug4fznnewnjdaptnl0d97uygusgvpzx9hyxk4',
+      amount: 0,
+      last_updated_at_state_version: 74657816,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1nfuf2z370tt7nr6gpjje60tq9zdksj0lgwmpcfdchkscnha0422dfp',
+      amount: 0,
+      last_updated_at_state_version: 64277239,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1nt7uscrcl2dxtugxzl5wws92fwm2rl2g7e4v66ane49kkn7xdmpftz',
+      amount: 0,
+      last_updated_at_state_version: 61159030,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1ntyg43hlwegw6q9f4v074ruxvke3keykfnew4kmnu57k9dawu94t8l',
+      amount: 0,
+      last_updated_at_state_version: 50831336,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1ngpnrpyhl0hspjdrwsjmlhr6tgrkw7sqq9edrs5jcewxg5n3h2ukg4',
+      amount: 0,
+      last_updated_at_state_version: 39404310,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1ntrysy2sncpj6t6shjlgsfr55dns9290e2zsy67fwwrp6mywsrrgsc',
+      amount: 0,
+      last_updated_at_state_version: 37701899,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1ntfanvrnhntxdvc9skrepp2pvdvve00607ws7senfkys0pyxr7a8lt',
+      amount: 0,
+      last_updated_at_state_version: 36560157,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1nfzpyryg5x5x3586dgcka44884f99rjcrusvwgkkc3jatzuwk6tflp',
+      amount: 0,
+      last_updated_at_state_version: 35968945,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1ng59sgyq5uu3nlmstnkuavqvsjzg7f8hrlst4hreymydxpx9csxt40',
+      amount: 0,
+      last_updated_at_state_version: 35968818,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1nt3frmqu4v57dy55e90n0k3uy352zyy89vszzamvjld6vqvr98rls9',
+      amount: 1,
+      last_updated_at_state_version: 23594970,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1nfyg2f68jw7hfdlg5hzvd8ylsa7e0kjl68t5t62v3ttamtejc9wlxa',
+      amount: 1,
+      last_updated_at_state_version: 20938459,
+    },
+  ],
+  address: 'account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w',
+}
+
+export const stateEntityFungiblesPageResponse: StateEntityFungiblesPageResponse = {
+  ledger_state: {
+    network: 'mainnet',
+    state_version: 81620626,
+    proposer_round_timestamp: '2024-05-09T16:30:09.559Z',
+    epoch: 97072,
+    round: 1141,
+  },
+  total_count: 28,
+  items: [
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
+      amount: '30.245803886130725575',
+      last_updated_at_state_version: 79357936,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1th2hexq3yrz8sj0nn3033gajnj7ztl0erp4nn9mcl5rj9au75tum0u',
+      amount: '0.000000109468214492',
+      last_updated_at_state_version: 39686136,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1thksg5ng70g9mmy9ne7wz0sc7auzrrwy7fmgcxzel2gvp8pj0xxfmf',
+      amount: '2367.538644471972121542',
+      last_updated_at_state_version: 39406565,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1tk9xrt4jxsavkmqp8e4xc9u2vwk3n672n4jzmvxrrujhts5sr4e67q',
+      amount: '0.000000000000051492',
+      last_updated_at_state_version: 39406565,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1tkk83magp3gjyxrpskfsqwkg4g949rmcjee4tu2xmw93ltw2cz94sq',
+      amount: '1131.191721666815934647',
+      last_updated_at_state_version: 36560157,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t554n6l00f208regjt9xj2av0en8pueqyjldqd2u6tdvtrclrs4ev3',
+      amount: '14981.654110658061435855',
+      last_updated_at_state_version: 36536616,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t480axsxfrps66t3cw89mtusmssgrnf2y22q6vw709ez4cupc9sjdv',
+      amount: '17229.4056806375759515',
+      last_updated_at_state_version: 36536616,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t5n6agexw646tgu3lkr8n0nvt69z00384mhrlfuxz75wprtg9wwllq',
+      amount: '0',
+      last_updated_at_state_version: 35971242,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1tkjwu04wu5efa4z0zvg060yw9pga62z8n7mz40nx7vulrtvtnaf687',
+      amount: '0',
+      last_updated_at_state_version: 35971242,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t4xkx270sg2hs397dzetux64c3q0gzpa2kjepetrf6mqkz3k35hm9j',
+      amount: '30',
+      last_updated_at_state_version: 35971242,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1thn6xa5vjdh5zagqzvxkxpd70r6eadpzmzr83m20ayp3yhxrjavxz5',
+      amount: '100',
+      last_updated_at_state_version: 35971242,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t4qs620v3r9uzs6744eas47vdxnf39407hhh82c09cvvj2sqz8h4h5',
+      amount: '10045.504285284042544108',
+      last_updated_at_state_version: 35665278,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t4vg8t8lgrnc2dljh4xgmhj3v6rpq7ph2f9u7ve7k6nw48xfvg5xmy',
+      amount: '1',
+      last_updated_at_state_version: 28853986,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t4p39fd9n7zr7jpzljdha25axxlhcmtwqwt2a0j2tn9hkrjrn0yfwa',
+      amount: '0.066197483157830618',
+      last_updated_at_state_version: 28822614,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t5muwkqqthsv2w25syfmeef3yul6qc7vs0phulms2hyazf9p863zpq',
+      amount: '217.998933387078304076',
+      last_updated_at_state_version: 28794316,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1thdd8kqdcg0vyqh77dpyksuxsan5y9ry2u9d00pewx6mkeug7r92qz',
+      amount: '0',
+      last_updated_at_state_version: 23597617,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t5tsyyh82jxjrg7lrat7y5f7mcuxcch6d3jkc75l8et3n2n6h32kvd',
+      amount: '35',
+      last_updated_at_state_version: 21327218,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1thlnv2lydu7np9w8guguqslkydv000d7ydn7uq0sestql96hrfml0v',
+      amount: '10',
+      last_updated_at_state_version: 21327218,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t4dy69k6s0gv040xa64cyadyefwtett62ng6xfdnljyydnml7t6g3j',
+      amount: '2346',
+      last_updated_at_state_version: 21326355,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1th3adk93ale3n8nzrypghtkasczmpt42qamq7x5dy8lsu3uwycvh4n',
+      amount: '11059.089986398643523302',
+      last_updated_at_state_version: 20937160,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1tkmh5qa5vgluvxwxyxjkjv9vgaln64t8v0j3vzz9rsf4u69rt2ljv7',
+      amount: '599',
+      last_updated_at_state_version: 516,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t5g0w9fhz344t5ywqrcy59p3cyhqgwc9atxhm78jle08nrhrr24cc2',
+      amount: '119.54203569797823488',
+      last_updated_at_state_version: 497,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t4qfgjm35dkwdrpzl3d8pc053uw9v4pj5wfek0ffuzsp73evye6wu6',
+      amount: '2506183.550227893234696192',
+      last_updated_at_state_version: 404,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1thunnyrarlduxy0x4j7sedzfvj0cxjf8cgnfcl7xn756txy7xcdqkl',
+      amount: '101000',
+      last_updated_at_state_version: 351,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1thj4t8073p2jkytk3fcr2mc39ehnecq4f9cuknakpy2zyaz63v6mdt',
+      amount: '10000',
+      last_updated_at_state_version: 225,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1t5a4c33dsr72l9h5v2hspa2ye9jzmptjkzky42s8ay6nfr67rvj4lv',
+      amount: '1',
+      last_updated_at_state_version: 128,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1th8zw0meumt5t60hdaak8xmc5talrpmphjj2htjutsen02pty9zsd9',
+      amount: '1002022',
+      last_updated_at_state_version: 104,
+    },
+    {
+      aggregation_level: 'Global',
+      resource_address: 'resource_rdx1thtyxvkkn96dyauuws5f78f6yevh2955decu24p3wtxgcurvjflec3',
+      amount: '7168.904729368610817137',
+      last_updated_at_state_version: 8,
+    },
+  ],
+  address: 'account_rdx16x47guzq44lmplg0ykfn2eltwt5wweylpuupstsxnfm8lgva7tdg2w',
+}
 
 export const mockEntityDetailsResponse: StateEntityDetailsResponse = {
   ledger_state: {
