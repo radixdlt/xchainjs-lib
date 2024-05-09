@@ -859,3 +859,5 @@ export default class Client extends BaseXChainClient {
     }
   }
 }
+
+export { Client }

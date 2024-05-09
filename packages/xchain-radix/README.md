@@ -19,41 +19,83 @@ yarn add @xchainjs/xchain-radix
 ### Creating a radix client
 
 ```
-import { Network, XChainClientParams } from '@xchainjs/xchain-client/lib'
+import { Network, XChainClientParams } from '@xchainjs/xchain-client'
 import { Client } from '@xchainjs/xchain-radix'
 
 const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
 const params: XChainClientParams = {
-  network: Network.Mainnet,
+  network: Network.Testnet,
   phrase: phrase,
+  feeBounds: { lower: 1, upper: 5 },
 }
-const client = new Client(params)
-const assetInfo = client.getAssetInfo
-console.log(assetInfo)
+const client = new Client(params, 'Ed25519')
+console.log(client.getAssetInfo())
 ```
 
 ### Creating a transaction
 
+There are two methods related to creating transactions: prepareTx and transfer
+The first one creates a raw unsigned transaction (it doesn't submit the transaction). The
+second one submits the transaction to the ledger
+
+#### prepareTx
+
 ```
-import { Network, TxParams, XChainClientParams } from '@xchainjs/xchain-client/lib'
-import { Client } from '@xchainjs/xchain-radix'
-import { XrdAsset } from '@xchainjs/xchain-radix/src/const'
-import { baseAmount } from '@xchainjs/xchain-util'
+import { Network, TxParams, XChainClientParams } from '@xchainjs/xchain-client'
+import { Client, XrdAssetStokenet } from '@xchainjs/xchain-radix'
+import { baseAmount } from '@xchainjs/xchain-util/lib'
 
 const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
 const params: XChainClientParams = {
-  network: Network.Mainnet,
+  network: Network.Testnet,
   phrase: phrase,
+  feeBounds: { lower: 1, upper: 5 },
 }
-const radixClient = new Client(params)
 
-const txParams: TxParams = {
-  asset: XrdAsset,
-  amount: baseAmount(1000),
-  recipient: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+async function main() {
+  const client = new Client(params, 'Ed25519')
+
+  const txParams: TxParams = {
+    asset: XrdAssetStokenet,
+    amount: baseAmount(1),
+    recipient: 'account_tdx_2_129wjagjzxltd0clr3q4z7hqpw5cc7weh9trs4e9k3zfwqpj636e5zf',
+    memo: 'test',
+  }
+  const preparedTx = await client.prepareTx(txParams)
+  console.log(preparedTx)
 }
-const transferTransaction = await radixClient.transfer(txParams)
-console.log(transferTransaction)
+
+main().catch(console.error)
+```
+
+#### transfer
+
+```
+import { Network, TxParams, XChainClientParams } from '@xchainjs/xchain-client'
+import { Client, XrdAssetStokenet } from '@xchainjs/xchain-radix'
+import { baseAmount } from '@xchainjs/xchain-util/lib'
+
+const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
+const params: XChainClientParams = {
+  network: Network.Testnet,
+  phrase: phrase,
+  feeBounds: { lower: 1, upper: 5 },
+}
+
+async function main() {
+  const client = new Client(params, 'Ed25519')
+
+  const txParams: TxParams = {
+    asset: XrdAssetStokenet,
+    amount: baseAmount(1),
+    recipient: 'account_tdx_2_129wjagjzxltd0clr3q4z7hqpw5cc7weh9trs4e9k3zfwqpj636e5zf',
+    memo: 'test',
+  }
+  const transactionId = await client.transfer(txParams)
+  console.log(transactionId)
+}
+
+main().catch(console.error)
 ```
 
 ### Getting a transaction data
