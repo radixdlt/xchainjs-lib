@@ -300,12 +300,12 @@ describe('RadixClient Test', () => {
       Convert.HexString.toUint8Array(preparedTx.rawUnsignedTx),
     )
     // TODO add better assertions
-    expect(decompiledIntent.manifest.instructions.value.length).toBe(3)
+    expect(decompiledIntent.manifest.instructions.value.length).toBe(4)
     const instructions = decompiledIntent.manifest.instructions.value as Instruction[]
     expect(instructions[0].kind).toBe('CallMethod')
     if (instructions[0].kind === 'CallMethod') {
       const callMethodInstruction = instructions[0] as { kind: 'CallMethod'; methodName: string }
-      expect(callMethodInstruction.methodName).toBe('lock_fee_and_withdraw')
+      expect(callMethodInstruction.methodName).toBe('lock_fee')
     }
 
     expect(instructions[1].kind).toBe('TakeFromWorktop')
@@ -363,12 +363,12 @@ describe('RadixClient Test', () => {
       Convert.HexString.toUint8Array(preparedTx.rawUnsignedTx),
     )
 
-    expect(decompiledIntent.manifest.instructions.value.length).toBe(3)
+    expect(decompiledIntent.manifest.instructions.value.length).toBe(4)
     const instructions = decompiledIntent.manifest.instructions.value as Instruction[]
     expect(instructions[0].kind).toBe('CallMethod')
     if (instructions[0].kind === 'CallMethod') {
       const callMethodInstruction = instructions[0] as { kind: 'CallMethod'; methodName: string }
-      expect(callMethodInstruction.methodName).toBe('lock_fee_and_withdraw')
+      expect(callMethodInstruction.methodName).toBe('lock_fee')
     }
 
     expect(instructions[1].kind).toBe('TakeFromWorktop')

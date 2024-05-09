@@ -340,11 +340,8 @@ export class RadixSpecificClient {
     amountToLockForFees: number,
   ): TransactionManifest {
     return new ManifestBuilder()
-      .callMethod(from, 'lock_fee_and_withdraw', [
-        decimal(amountToLockForFees),
-        address(resourceAddress),
-        decimal(amount),
-      ])
+      .callMethod(from, 'lock_fee', [decimal(amountToLockForFees)])
+      .callMethod(from, 'withdraw', [address(resourceAddress), decimal(amount)])
       .takeFromWorktop(resourceAddress, decimal(amount).value, (builder, bucketId) => {
         return builder.callMethod(to, 'try_deposit_or_abort', [bucket(bucketId), enumeration(0)])
       })
