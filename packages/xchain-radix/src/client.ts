@@ -40,8 +40,10 @@ import {
   Network,
   PreparedTx,
   Tx,
+  TxFrom,
   TxHistoryParams,
   TxParams,
+  TxTo,
   TxType,
   TxsPage,
   XChainClientParams,
@@ -57,7 +59,7 @@ import * as ecc from 'tiny-secp256k1'
 import {
   RadixChain,
   XRD_DECIMAL,
-  XrdAssetStokenet,
+  assets,
   bech32Lengths,
   bech32Networks,
   feesEstimationPublicKeys,
@@ -166,8 +168,18 @@ export class RadixSpecificClient {
       .map(parseFloat)
       .reduce((acc, item) => acc + item, 0)
 
+    // We need to add another 10% to the fees as the preview response does not include everything needed
+    // to actually submit the transaction, ie: signature validation
+    const totalFeesPlus10Percent = totalFees * 1.1
+
     // Construct a new intent with the calculated fees.
-    const manifest = RadixSpecificClient.simpleTransferManifest(from, to, resourceAddress, amount, totalFees)
+    const manifest = RadixSpecificClient.simpleTransferManifest(
+      from,
+      to,
+      resourceAddress,
+      amount,
+      totalFeesPlus10Percent,
+    )
     const intent = await this.constructIntent(
       manifest,
       message === null
@@ -645,37 +657,49 @@ export default class Client extends BaseXChainClient {
     const transactionBinary = Convert.HexString.toUint8Array(transaction_hex)
     try {
       const transactionSummary = await LTSRadixEngineToolkit.Transaction.summarizeTransaction(transactionBinary)
-      const withdrawAccount = Object.keys(transactionSummary.withdraws)[0]
-      const depositAccount = Object.keys(transactionSummary.deposits)[0]
-      const withdrawResource = Object.keys(transactionSummary.withdraws[withdrawAccount])[0]
-      const withdrawAmount: number = transactionSummary.withdraws[withdrawAccount][withdrawResource].toNumber()
 
-      const transaction: Tx = {
-        from: [
-          {
+      const from: TxFrom[] = []
+      const to: TxTo[] = []
+
+      // Iterate over withdraws
+      for (const withdrawAccount in transactionSummary.withdraws) {
+        for (const withdrawResource in transactionSummary.withdraws[withdrawAccount]) {
+          const withdrawAmount: number = transactionSummary.withdraws[withdrawAccount][withdrawResource].toNumber()
+          from.push({
             from: withdrawAccount,
             amount: baseAmount(withdrawAmount),
             asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: RadixChain },
-          },
-        ],
-        to: [
-          {
+          })
+        }
+      }
+
+      // Iterate over deposits
+      for (const depositAccount in transactionSummary.deposits) {
+        for (const depositResource in transactionSummary.deposits[depositAccount]) {
+          const depositAmount: number = transactionSummary.deposits[depositAccount][depositResource].toNumber()
+          to.push({
             to: depositAccount,
-            amount: baseAmount(withdrawAmount),
-            asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: RadixChain },
-          },
-        ],
+            amount: baseAmount(depositAmount),
+            asset: { symbol: depositResource, ticker: depositResource, synth: false, chain: RadixChain },
+          })
+        }
+      }
+
+      const transaction: Tx = {
+        from: from,
+        to: to,
         date: confirmed_at,
         type: TxType.Transfer,
         hash: intent_hash,
-        asset: { symbol: withdrawResource, ticker: withdrawResource, synth: false, chain: RadixChain },
+        asset: { symbol: '', ticker: '', synth: false, chain: RadixChain },
       }
+
       return transaction
     } catch (error) {
       return {
         from: [],
         to: [],
-        asset: XrdAssetStokenet,
+        asset: assets[this.getRadixNetwork()],
         date: confirmed_at,
         type: TxType.Unknown,
         hash: intent_hash,
@@ -733,7 +757,7 @@ export default class Client extends BaseXChainClient {
       .constructSimpleTransferIntent(
         from,
         params.recipient,
-        (params.asset ?? XrdAssetStokenet).symbol,
+        (params.asset ?? assets[this.getRadixNetwork()]).symbol,
         params.amount.amount().toNumber(),
         this.getRadixPrivateKey().publicKey(),
         params.memo,
@@ -751,7 +775,7 @@ export default class Client extends BaseXChainClient {
    */
   getAssetInfo(): AssetInfo {
     return {
-      asset: XrdAssetStokenet,
+      asset: assets[this.getRadixNetwork()],
       decimal: XRD_DECIMAL,
     }
   }

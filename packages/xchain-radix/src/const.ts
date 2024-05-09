@@ -66,3 +66,8 @@ export const feesEstimationPublicKeys: { [networkId: number]: FeesEstimationPara
     publicKey: 'f926e5d67daa984375a86abbb305abc350c7dadba11d348c1cf4db27640c8d4e',
   },
 }
+
+export const assets: { [networkId: number]: Asset } = {
+  [NetworkId.Mainnet]: XrdAssetMainnet,
+  [NetworkId.Stokenet]: XrdAssetStokenet,
+}

@@ -1,5 +1,11 @@
-import { GatewayStatusResponse } from '@radixdlt/babylon-gateway-api-sdk'
-import { Convert, RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit'
+import {
+  Configuration,
+  GatewayStatusResponse,
+  TransactionApi,
+  TransactionStatus,
+  TransactionStatusResponse,
+} from '@radixdlt/babylon-gateway-api-sdk'
+import { Convert, Instruction, RadixEngineToolkit } from '@radixdlt/radix-engine-toolkit'
 import { Balance, Fees, Network, Tx, TxParams, XChainClientParams } from '@xchainjs/xchain-client/src'
 import { Asset, baseAmount } from '@xchainjs/xchain-util'
 import {
@@ -125,6 +131,19 @@ describe('RadixClient Test', () => {
 
   it('client should be able validate a valid address async', async () => {
     const client = createClient()
+    const address: string = await client.getAddressAsync()
+    const isValid = await client.validateAddressAsync(address)
+    expect(isValid).toBe(true)
+  })
+
+  it('client should be able validate a mainnet valid address async', async () => {
+    const phrase = 'rural bright ball negative already grass good grant nation screen model pizza'
+    const params: XChainClientParams = {
+      network: Network.Mainnet,
+      phrase: phrase,
+      feeBounds: { lower: 1, upper: 5 },
+    }
+    const client = new Client(params, 'Ed25519')
     const address: string = await client.getAddressAsync()
     const isValid = await client.validateAddressAsync(address)
     expect(isValid).toBe(true)
@@ -272,6 +291,20 @@ describe('RadixClient Test', () => {
     )
     // TODO add better assertions
     expect(decompiledIntent.manifest.instructions.value.length).toBe(3)
+    const instructions = decompiledIntent.manifest.instructions.value as Instruction[]
+    expect(instructions[0].kind).toBe('CallMethod')
+    if (instructions[0].kind === 'CallMethod') {
+      const callMethodInstruction = instructions[0] as { kind: 'CallMethod'; methodName: string }
+      expect(callMethodInstruction.methodName).toBe('lock_fee_and_withdraw')
+    }
+
+    expect(instructions[1].kind).toBe('TakeFromWorktop')
+    if (instructions[1].kind === 'TakeFromWorktop') {
+      const takeFromWorktopInstruction = instructions[1] as { kind: 'TakeFromWorktop'; resourceAddress: string }
+      expect(takeFromWorktopInstruction.resourceAddress).toBe(
+        'resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc',
+      )
+    }
   })
 
   it('client should be able transfer', async () => {
@@ -305,4 +338,81 @@ describe('RadixClient Test', () => {
     await client.broadcastTx(transactionHex)
     expect(client.radixClient.gatewayClient.transaction.innerClient.transactionSubmit).toBeCalledTimes(1)
   })
+
+  it('client should be able prepare a transaction without mocking', async () => {
+    const client = createClient()
+
+    const txParams: TxParams = {
+      asset: XrdAssetStokenet,
+      amount: baseAmount(1),
+      recipient: 'account_tdx_2_129wjagjzxltd0clr3q4z7hqpw5cc7weh9trs4e9k3zfwqpj636e5zf',
+      memo: 'test',
+    }
+    const preparedTx = await client.prepareTx(txParams)
+    const decompiledIntent = await RadixEngineToolkit.Intent.decompile(
+      Convert.HexString.toUint8Array(preparedTx.rawUnsignedTx),
+    )
+
+    expect(decompiledIntent.manifest.instructions.value.length).toBe(3)
+    const instructions = decompiledIntent.manifest.instructions.value as Instruction[]
+    expect(instructions[0].kind).toBe('CallMethod')
+    if (instructions[0].kind === 'CallMethod') {
+      const callMethodInstruction = instructions[0] as { kind: 'CallMethod'; methodName: string }
+      expect(callMethodInstruction.methodName).toBe('lock_fee_and_withdraw')
+    }
+
+    expect(instructions[1].kind).toBe('TakeFromWorktop')
+    if (instructions[1].kind === 'TakeFromWorktop') {
+      const takeFromWorktopInstruction = instructions[1] as { kind: 'TakeFromWorktop'; resourceAddress: string }
+      expect(takeFromWorktopInstruction.resourceAddress).toBe(
+        'resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc',
+      )
+    }
+
+    expect(instructions[2].kind).toBe('CallMethod')
+    if (instructions[2].kind === 'CallMethod') {
+      const callMethodInstruction = instructions[2] as {
+        kind: 'CallMethod'
+        methodName: string
+        address: { kind: 'Static'; value: string }
+      }
+      expect(callMethodInstruction.methodName).toBe('try_deposit_or_abort')
+      expect(callMethodInstruction.address.value).toBe(
+        'account_tdx_2_129wjagjzxltd0clr3q4z7hqpw5cc7weh9trs4e9k3zfwqpj636e5zf',
+      )
+    }
+  })
+
+  it('client should be able transfer without mock', async () => {
+    const client = createClient()
+    const txParams: TxParams = {
+      asset: XrdAssetStokenet,
+      amount: baseAmount(0.01),
+      recipient: 'account_tdx_2_129wjagjzxltd0clr3q4z7hqpw5cc7weh9trs4e9k3zfwqpj636e5zf',
+      memo: 'test',
+    }
+    const transactionId = await client.transfer(txParams)
+
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    const NetworkConfiguration = {
+      gatewayBaseUrl: 'https://stokenet.radixdlt.com',
+      networkId: 0x02,
+    }
+    const apiConfiguration = new Configuration({
+      basePath: NetworkConfiguration.gatewayBaseUrl,
+    })
+    const transactionApi = new TransactionApi(apiConfiguration)
+    const transactionStatus = await getTransactionStatus(transactionApi, transactionId)
+    expect(transactionStatus.status).toBe(TransactionStatus.CommittedSuccess)
+  })
+
+  const getTransactionStatus = async (
+    transactionApi: TransactionApi,
+    transactionId: string,
+  ): Promise<TransactionStatusResponse> =>
+    transactionApi.transactionStatus({
+      transactionStatusRequest: {
+        intent_hash: transactionId,
+      },
+    })
 })
