@@ -308,12 +308,10 @@ describe('RadixClient Test', () => {
       expect(callMethodInstruction.methodName).toBe('lock_fee')
     }
 
-    expect(instructions[1].kind).toBe('TakeFromWorktop')
-    if (instructions[1].kind === 'TakeFromWorktop') {
-      const takeFromWorktopInstruction = instructions[1] as { kind: 'TakeFromWorktop'; resourceAddress: string }
-      expect(takeFromWorktopInstruction.resourceAddress).toBe(
-        'resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc',
-      )
+    expect(instructions[1].kind).toBe('CallMethod')
+    if (instructions[1].kind === 'CallMethod') {
+      const takeFromWorktopInstruction = instructions[1] as { kind: 'CallMethod'; methodName: string }
+      expect(takeFromWorktopInstruction.methodName).toBe('withdraw')
     }
   })
 
@@ -349,7 +347,7 @@ describe('RadixClient Test', () => {
     expect(client.radixClient.gatewayClient.transaction.innerClient.transactionSubmit).toBeCalledTimes(1)
   })
 
-  it('client should be able prepare a transaction without mocking', async () => {
+  it('client should be able prepare a tx without mocking', async () => {
     const client = createClient()
 
     const txParams: TxParams = {
@@ -371,17 +369,15 @@ describe('RadixClient Test', () => {
       expect(callMethodInstruction.methodName).toBe('lock_fee')
     }
 
-    expect(instructions[1].kind).toBe('TakeFromWorktop')
-    if (instructions[1].kind === 'TakeFromWorktop') {
-      const takeFromWorktopInstruction = instructions[1] as { kind: 'TakeFromWorktop'; resourceAddress: string }
-      expect(takeFromWorktopInstruction.resourceAddress).toBe(
-        'resource_tdx_2_1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxtfd2jc',
-      )
+    expect(instructions[1].kind).toBe('CallMethod')
+    if (instructions[1].kind === 'CallMethod') {
+      const takeFromWorktopInstruction = instructions[1] as { kind: 'CallMethod'; methodName: string }
+      expect(takeFromWorktopInstruction.methodName).toBe('withdraw')
     }
 
-    expect(instructions[2].kind).toBe('CallMethod')
-    if (instructions[2].kind === 'CallMethod') {
-      const callMethodInstruction = instructions[2] as {
+    expect(instructions[3].kind).toBe('CallMethod')
+    if (instructions[3].kind === 'CallMethod') {
+      const callMethodInstruction = instructions[3] as {
         kind: 'CallMethod'
         methodName: string
         address: { kind: 'Static'; value: string }
