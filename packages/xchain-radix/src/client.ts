@@ -395,7 +395,6 @@ export class RadixSpecificClient {
         },
       },
     }
-
     return this.innerGatewayClient.transaction.innerClient.transactionPreview(request)
   }
 
