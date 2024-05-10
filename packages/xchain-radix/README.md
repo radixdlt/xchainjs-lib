@@ -196,12 +196,12 @@ console.log(txs)
 
 This package uses the following service providers
 
-| Function                    | Service               | Notes                                                                             | Rate limits                   |
-| --------------------------- | --------------------- | --------------------------------------------------------------------------------- | ----------------------------- |
-| Balances                    | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/StateEntityDetails          | x requests per IP per second. |
-| Transaction history         | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/StreamTransactions          | x requests per IP per minute  |
-| Transaction details by hash | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionCommittedDetails | x requests per IP per second  |
-| Fees                        | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionPreview          | x requests per IP per second  |
-| Transaction broadcast       | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionSubmit           | x requests per IP per second  |
-| Transfer                    | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionSubmit           | x requests per IP per second  |
-| Explorer                    | Dashboard             | https://dashboard.radixdlt.com/                                                   |                               |
+| Function                    | Service               | Notes                                                                             | Rate limits              |
+| --------------------------- | --------------------- | --------------------------------------------------------------------------------- | ------------------------ |
+| Balances                    | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/StateEntityDetails          | 1550 requests per minute |
+| Transaction history         | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/StreamTransactions          | 1550 requests per minute |
+| Transaction details by hash | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionCommittedDetails | 1550 requests per minute |
+| Fees                        | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionPreview          | 1550 requests per minute |
+| Transaction broadcast       | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionSubmit           | 1550 requests per minute |
+| Transfer                    | Radix Network Gateway | https://radix-babylon-gateway-api.redoc.ly/#operation/TransactionSubmit           | 1550 requests per minute |
+| Explorer                    | Dashboard             | https://dashboard.radixdlt.com/                                                   |                          |
