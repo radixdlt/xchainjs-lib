@@ -30,7 +30,7 @@ export const XrdAssetStokenet: Asset = {
 export const xrdRootDerivationPaths: RootDerivationPaths = {
   [Network.Mainnet]: "m/44'/1022'/1'/525'/1460'/0'",
   [Network.Stagenet]: "m/44'/1022'/2'/525'/1460'/0'",
-  [Network.Testnet]: "m/44'/1022'/12'/525'/1460'/0'",
+  [Network.Testnet]: "m/44'/1022'/2'/525'/1460'/0'",
 }
 
 export const bech32Networks: { [key: number]: string } = {
@@ -54,10 +54,10 @@ interface FeesEstimationParams {
 
 export const feesEstimationPublicKeys: { [networkId: number]: FeesEstimationParams } = {
   [NetworkId.Mainnet]: {
-    from: 'account_rdx16803fft0ppmre8cr48njz2mxr2ankuhn85k0r6yfhwapwe0qk0j2pg',
+    from: 'account_rdx12xh48d5s9u7me5t49z25lrm4h73wclqpjvumd49ctf0ggnyazc62m8',
     to: 'account_rdx1685t40mreptjhs9g3pg9lgf7k7rgppzjeknjgrpc7d0sumcjrsw6kj',
     resourceAddress: XrdAssetMainnet.symbol,
-    publicKey: '',
+    publicKey: 'a47e22f21e16d80374f16d66224b56f6eda82a6db8279de267a74a49f0291e8b',
   },
   [NetworkId.Stokenet]: {
     from: 'account_tdx_2_1292a230ugrfdq96skhg92ccam3h6dv0kw707curmzel0d92ctqun5z',
