@@ -263,7 +263,6 @@ export class RadixSpecificClient {
     const previewReceipt = (await this.previewIntent(intentWithHardcodedFee)) as PartialTransactionPreviewResponse
     // Ensure that the preview was successful.
 
-    console.log(previewReceipt)
     if (previewReceipt.receipt.status !== 'Succeeded') {
       throw new Error('Preview for fees was not successful')
     }
@@ -397,7 +396,6 @@ export class RadixSpecificClient {
       },
     }
 
-    console.log(JSON.stringify(intent))
     return this.innerGatewayClient.transaction.innerClient.transactionPreview(request)
   }
 
