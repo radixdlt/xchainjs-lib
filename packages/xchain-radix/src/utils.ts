@@ -15,7 +15,7 @@ const submitTransaction = async (
   })
 
 export const fund = async () => {
-  const toAccount = 'account_tdx_2_12ywhfpfdlvmgahszz3tgg3xaj0q674e9h0xefmskgc2f7gw2rs7jmg' // Read the toAccount parameter from command-line arguments
+  const toAccount = 'account_tdx_2_12ya6ctt0yhdtlz086kkdva6u3m40qtud7tu057mv37pfpjj5jqcl8e' // Read the toAccount parameter from command-line arguments
   if (!toAccount) {
     console.error('Please provide a toAccount address as a command-line argument.')
     process.exit(1)

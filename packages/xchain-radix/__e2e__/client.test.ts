@@ -7,7 +7,7 @@ import { fund } from '../src/utils'
 describe('e2e tests', () => {
   let clientSecp256k1: Client
   let clientEd25519: Client
-  const phrase = ''
+  const phrase = 'secret merry chef deposit future view bone shadow rely sunset keep mixed'
 
   beforeAll(() => {
     clientEd25519 = new Client({
@@ -54,7 +54,7 @@ describe('e2e tests', () => {
 
   it('Should get balance', async () => {
     const balances = await clientEd25519.getBalance(
-      'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
+      'account_tdx_2_12927ya6vxtmhu8w0qkwtumw8kjmlv930agjzezfgg6yp3j6agn3gfc',
     )
     for (const balance of balances) {
       console.log(`${assetToString(balance.asset)} --> ${baseToAsset(balance.amount).amount().toString()}`)
@@ -63,15 +63,15 @@ describe('e2e tests', () => {
 
   it('Should get transaction data', async () => {
     const transaction = await clientEd25519.getTransactionData(
-      'txid_rdx195z9zjp43qvqk8fnzmnpazv5m7jsaepq6cnm5nnnn5p3m2573rvqamjaa8',
+      'txid_tdx_2_1qm9aqwnfqpxutfuqwhy4s3zjnxx97mkc82tnytw6tl25np2rl47s5me9q5',
     )
     console.log(transaction)
   })
 
   it('should get transaction history', async () => {
     const txs = await clientEd25519.getTransactions({
-      address: 'account_rdx169yt0y36etavnnxp4du5ekn7qq8thuls750q6frq5xw8gfq52dhxhg',
-      offset: 72533720,
+      address: 'account_tdx_2_12927ya6vxtmhu8w0qkwtumw8kjmlv930agjzezfgg6yp3j6agn3gfc',
+      offset: 94150,
     })
     console.log(txs)
   })
@@ -80,6 +80,7 @@ describe('e2e tests', () => {
     const hash = await clientEd25519.transfer({
       recipient: 'account_tdx_2_12ywhfpfdlvmgahszz3tgg3xaj0q674e9h0xefmskgc2f7gw2rs7jmg',
       amount: assetToBase(assetAmount(1, 18)),
+      memo: 'memo',
     })
 
     console.log({ hash })
