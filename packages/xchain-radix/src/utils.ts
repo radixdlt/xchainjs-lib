@@ -1,26 +1,21 @@
-const {
-  Configuration,
-  StatusApi,
-  TransactionApi,
-  TransactionSubmitResponse,
-} = require('@radixdlt/babylon-gateway-api-sdk')
-const { Convert, SimpleTransactionBuilder } = require('@radixdlt/radix-engine-toolkit')
+import { Configuration, StatusApi, TransactionApi, TransactionSubmitResponse } from '@radixdlt/babylon-gateway-api-sdk'
+import { Convert, SimpleTransactionBuilder } from '@radixdlt/radix-engine-toolkit'
 
-const getCurrentEpoch = async (statusApi: typeof StatusApi): Promise<number> =>
+const getCurrentEpoch = async (statusApi: StatusApi): Promise<number> =>
   statusApi.gatewayStatus().then((output: { ledger_state: { epoch: number } }) => output.ledger_state.epoch)
 
 const submitTransaction = async (
-  transactionApi: typeof TransactionApi,
+  transactionApi: TransactionApi,
   compiledTransaction: Uint8Array,
-): Promise<typeof TransactionSubmitResponse> =>
+): Promise<TransactionSubmitResponse> =>
   transactionApi.transactionSubmit({
     transactionSubmitRequest: {
       notarized_transaction_hex: Convert.Uint8Array.toHexString(compiledTransaction),
     },
   })
 
-const main = async () => {
-  const toAccount = process.argv[2] // Read the toAccount parameter from command-line arguments
+export const fund = async () => {
+  const toAccount = 'account_tdx_2_12ywhfpfdlvmgahszz3tgg3xaj0q674e9h0xefmskgc2f7gw2rs7jmg' // Read the toAccount parameter from command-line arguments
   if (!toAccount) {
     console.error('Please provide a toAccount address as a command-line argument.')
     process.exit(1)
@@ -48,8 +43,3 @@ const main = async () => {
   const submissionResult = await submitTransaction(transactionApi, freeXrdForAccountTransaction.compiled)
   console.log('Transaction submission result:', submissionResult)
 }
-
-main().catch((error) => {
-  console.error('Error executing main script:', error)
-  process.exit(1)
-})
